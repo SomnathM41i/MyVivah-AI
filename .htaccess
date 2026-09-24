@@ -1,0 +1,32 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    Options -Indexes -MultiViews
+
+    # Handle Authorization Header (same as public/.htaccess)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Handle X-XSRF-Token Header
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Real files/directories that live inside public/ are served from there so
+    # asset URLs (/build/app-*.css, /favicon.svg, /js/..., /storage link) keep
+    # their normal paths.
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Everything else goes to the Laravel front controller.
+    RewriteRule ^(.*)$ public/index.php [L]
+</IfModule>
+
+# Belt-and-braces: never serve framework internals or secrets by basename even
+# if mod_rewrite is disabled or misconfigured.
+<FilesMatch "^(\.env|\.env\.example|\.git|\.gitignore|artisan|composer\.(json|lock)|package\.json|package-lock\.json|webpack\.mix\.js|README\.md|LICENSE|server\.php)$">
+    Require all denied
+</FilesMatch>
+
+# Deny direct URL access to framework and VCS directories at the project root
+# (including the .git folder — never let it be fetched over HTTP).
+RedirectMatch 403 (?i)^/(app|bootstrap|config|database|node_modules|resources|routes|storage|tests|vendor|\.git)(/|$)
