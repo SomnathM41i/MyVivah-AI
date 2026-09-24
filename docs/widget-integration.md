@@ -141,7 +141,7 @@ External user logs into the client platform
 - Contain a unique jti (token id) used for replay protection
 - Be signed with a secret the client registered with MyVivahAI
 
-**Recommended token standard:** JWT (HMAC-SHA256) or PASETO. **Open decision**, see [decisions.md](decisions.md).
+**Recommended token standard:** PASETO v4.local (approved — ADR-006, see [decisions.md](decisions.md)). Token lifetime ~5 minutes.
 
 ---
 
@@ -239,10 +239,59 @@ The embed script URL can remain identical across test/live if the mode is resolv
 ## Open Decisions
 
 1. Use Shadow DOM vs scoped CSS for isolation.
-2. Token standard (JWT vs PASETO vs custom HMAC).
+1. Token standard (JWT vs PASETO vs HMAC). **Resolved** — PASETO v4.local (ADR-006); see decisions.md.
 3. Whether search is a required feature at MVP.
 4. How test/live modes are distinguished (single embed URL with server-side resolution vs separate URLs).
 5. Whether the token endpoint is called by the widget directly or a pre-rendered token is injected into the page by the client's server.
 6. Whether image URLs are proxied through MyVivahAI for privacy (referrer hiding).
 7. Widget caching/CDN versioning strategy.
 8. Browser support matrix (modern only vs legacy browsers).
+
+---
+
+## Phase 4 — Implemented Widget Backend + Client JS
+
+The sections above describe the product flow. This section documents the **implemented** Phase 4 build (backend, client JS, and test coverage). See also `docs/integration-api.md` (§ Widget) for the wire contract and `docs/security.md` (§ Widget) for the trust model.
+
+### What was shipped
+
+| Area | Implementation |
+|---|---|
+| Session bootstrap | `POST /api/v1/widget/session` (platform PASETO, server-to-server) mints a single-user widget session |
+| Widget token | PASETO **v4.local**, `aud = widget:{slug}`, `sub = external_user_id`, `platform_id` + `external_user_id` claims, `scope = [realtime_chat:read, realtime_chat:write]`, footer `kid` |
+| Lifetime | `config('widget.session.ttl_seconds')` (default 900 s, capped at `max_ttl_seconds` = 1800) |
+| Widget API routes | `api/v1/widget/**` — conversations CRUD/read, messages index/store, read/markRead, presence heartbeat/show/me, `socket/auth`, `integration/users`, `users/{external_user_id}`, `session/revoke` |
+| Auth middleware | `ValidateWidgetToken` → sets `widget_session` + an adapted `paseto` so scope/entitlement/audit/rate-limit middleware run unchanged |
+| Identity rule | Widget identity ALWAYS comes from the token (`ExternalUserContext`), never from `X-External-User-Id` — a spoofed header is ignored |
+| Cross-route isolation | A widget token can never be replayed on platform routes (`PLATFORM_MISMATCH` 403), and vice versa |
+| Revocation | `POST /api/v1/widget/session/revoke` blacklists the token `jti`; expiry enforced on every request |
+| CORS | `config/cors.php` serves `api/v1/widget/*` preflights; per-platform `integration.allowed_origins` (exact or `https://*.sub.example`) strips ACAO in `RestrictWidgetOrigins` (global, runs after `HandleCors`) |
+| Guard | Widget callers may only open threads where the token-bound user is a participant (422 otherwise) |
+| Client JS | `public/js/myvivah-widget.js` — zero-dependency IIFE; `init/open/close/toggle/destroy/get/version`; floating + inline modes; REST-first with optional realtime; optimistic sends with dedupe by `client_message_id`; presence dots via polling |
+| Demo | `GET /demo/chat` (local + APP_DEBUG only) renders two side-by-side users; `DemoPlatformSeeder` seeds the demo integration + 5 demo users |
+| Tests | PHP feature suites `WidgetApiTest`/`WidgetIntegrationTest` (auth, isolation, spoofing, revoke, expiry, E2E, CORS, realtime broadcast) + 15 Node unit tests over the widget `_core` |
+
+### Embedding (runtime API initialization — implemented)
+
+```html
+<script>
+  window.MyVivahAIWidget.init({
+    session: {
+      apiBaseUrl: "https://myvivahai.example/api/v1/widget",
+      accessToken: "v4.local....",          // from the platform backend
+      externalUserId: "4582",               // echoed for styling "your" messages
+      sessionEndpoint: "/iviva/session"     // optional — refresh expired sessions
+    },
+    placement: "bottom-right"
+  });
+</script>
+<script async src="https://myvivahai.example/js/myvivah-widget.js"></script>
+```
+
+The browser only ever holds the short-lived widget token; **the platform's PASETO secret and API keys never leave the client server**. When the token expires the widget either re-requests the configured `sessionEndpoint` or falls back to a "session expired" state.
+
+### Local demo
+
+1. `php artisan db:seed` (idempotent `DemoPlatformSeeder`).
+2. Serve locally; visit `/demo/chat`.
+3. Open both panes and send a message — realtime wire events are visible in the other pane (or via REST fallback when realtime is disabled).

@@ -14,7 +14,7 @@ This document defines how the MyVivahAI Laravel application should be structured
 | PHP | 8.2+ | Required |
 | Database | MySQL 8.0+ | Recommended |
 | Cache/Queue | Redis | Recommended |
-| Broadcasting | Laravel Reverb or Pusher | Open decision (decisions.md) |
+| Broadcasting | Laravel Reverb (self-host) — **Resolved** (ADR-010) |
 | Dashboard UI | Blade + Alpine.js or Livewire | Open decision (decisions.md) |
 
 ---
@@ -350,7 +350,7 @@ Route groups:
 ## Open Decisions
 
 1. View stack: Blade+Alpine vs Livewire vs Inertia+Vue for the dashboard.
-2. Broadcast driver (Reverb vs Pusher/Soketi).
+2. Broadcast driver — **Resolved**: Laravel Reverb (ADR-010).
 3. Whether Eloquent global scopes are used (recommended: explicit scoping) for platform.
 4. Module boundaries as plain directories vs Composer packages (start simple: directories).
 5. Whether to adopt Laravel 12 conventions or stick with 11 defaults once initialized.

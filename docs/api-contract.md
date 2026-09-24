@@ -232,6 +232,23 @@ This document defines the **contract** each capability must satisfy. Parameter/f
 
 ---
 
+## External User Identity & Mapping (Phase 3B-2)
+
+The `id` returned by **Capability 1** (and used in Capability 2/3) becomes the canonical `external_user_id` that MyVivahAI stores. It keys a platform-scoped identity reference map (`platform_external_user_map`), so MyVivahAI can resolve "who this user is" without ever copying the client's profile data.
+
+Requirements this places on the client's `id` values:
+
+| Rule | Reason |
+|---|---|
+| Stable for the life of the user | The map is keyed on it; changing it orphans prior conversation references |
+| Unique **within** the platform | `(platform_id, external_user_id)` is a DB-level unique constraint |
+| May repeat across platforms | The same raw value on two different platforms is two distinct identities |
+| URL-safe, no `/` | Used as a path segment in MyVivahAI's own `GET /api/v1/users/{external_user_id}` |
+
+MyVivahAI's own identity endpoints (server-to-server, PASETO-authenticated) are documented in `integration-api.md`.
+
+---
+
 ## Authentication Options for Client APIs
 
 | Option | Description | Recommended |

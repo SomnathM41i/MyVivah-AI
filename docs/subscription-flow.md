@@ -65,26 +65,53 @@ Each service has one or more plans. A plan defines:
 | Feature Limits | e.g., max users, max messages, max conversations, presence on/off |
 | Included Features | Feature flags |
 
-Initial plan structure is **not yet defined**. This is an open decision.
+### Demo Plan Structure Now Defined (2026-09 approval)
+
+Initial plan structure for the **Real-Time Chat** service is seeded as **demo data** (ADR-012):
+
+| Plan | Billing | Placeholder Pricing (demo) |
+|---|---|---|
+| Free Trial | Trial | ₹0 / trial period |
+| Starter | Monthly / Yearly | e.g., ₹999/mo — placeholder |
+| Professional | Monthly / Yearly | e.g., ₹2,999/mo — placeholder |
+| Business | Monthly / Yearly | e.g., ₹7,999/mo — placeholder |
+
+- Plans are **admin-managed and dynamic** (no code deploys to change them).
+- Placeholder pricing is **clearly marked as demo data** and can be changed later.
+- Limits/features use the `plan_features` system (see database.md).
+- Plans with historical subscriptions are **deactivated, never deleted**.
 
 ---
 
-## Payment Flow
+## Payment Flow (Approved Manual Workflow — MVP)
 
-1. Platform selects a plan.
-2. Platform enters payment details or selects a stored payment method.
-3. MyVivahAI initiates payment with a payment gateway.
-4. Gateway redirects the platform to a hosted page (or processes inline if card details entered).
-5. Gateway returns a status (success/pending/failed).
-6. MyVivahAI verifies the payment (via webhook callback or status check).
-7. Upon successful verification, the subscription is activated.
-8. Payment record is stored.
+The MVP uses a **manual, admin-approved purchase workflow** (ADR-011). No online gateway is integrated at MVP.
 
-**Open decisions:**
-- Payment gateway provider (Stripe, Razorpay, PayU, etc.)
-- Whether to support one-time vs recurring payments at MVP
-- Whether to support multiple currencies
-- Whether to support manual/admin payment approval
+1. Client platform selects a plan and submits a **purchase request**.
+2. Admin reviews the request (`under_review`).
+3. Admin **approves** or **rejects** the request.
+4. Payment is **recorded manually** (no gateway).
+5. Admin verifies the recorded payment.
+6. Subscription becomes **active only after payment verification**.
+
+Suggested request/approval statuses (kept as **separate states**):
+
+```
+pending → under_review → approved → payment_pending → payment_submitted
+                                      → payment_verified → (subscription ACTIVE)
+rejected / cancelled / expired  (terminal)
+```
+
+- **Purchase approval and payment verification are separate states.**
+- The database is **gateway-agnostic** so **Razorpay or Stripe can be integrated later** without restructuring (see database.md `purchase_requests` / `payments`).
+- No gateway SDKs are required at MVP.
+
+**Open decisions (non-MVP):**
+- Gateway provider once online payments are added (Razorpay/Stripe/etc.).
+- One-time vs recurring at that future point.
+- Multiple currencies.
+
+**Resolved:** manual/admin payment approval — **included at MVP** (ADR-011).
 
 ---
 

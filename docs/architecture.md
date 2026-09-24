@@ -152,7 +152,7 @@ Each module is a logical grouping of models, controllers, services, events, and 
 | Database | MySQL 8.0+ | Recommended |
 | Cache | Redis | Recommended |
 | Queue | Redis (via Laravel Queue) | Recommended |
-| WebSocket | Laravel Reverb or Pusher | Open decision (see decisions.md) |
+| WebSocket | Laravel Reverb (self-hosted) | **Resolved** — ADR-010 |
 | File Storage | Local / S3-compatible | Open decision |
 | Frontend (Dashboard) | Blade + Alpine.js or Livewire | Open decision |
 | Frontend (Widget) | Vanilla JS or lightweight framework | Open decision |
@@ -200,7 +200,7 @@ Each module is a logical grouping of models, controllers, services, events, and 
 
 ## Open Decisions
 
-- Exact WebSocket server choice (Laravel Reverb, Pusher, Soketi, custom).
+- Exact WebSocket server choice (Laravel Reverb, Pusher, Soketi, custom). → **Resolved**: Laravel Reverb (ADR-010).
 - Whether to use Blade/Livewire or a separate SPA (Vue/React) for the client dashboard.
 - Whether to use a monolithic Laravel app or modular package structure.
 - File storage strategy (local vs S3-compatible).

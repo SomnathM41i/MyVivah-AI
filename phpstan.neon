@@ -1,0 +1,23 @@
+includes:
+    - vendor/nunomaduro/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+
+    # Boot to get types from config + containers; keep this phase free of false
+    # positives by not analysing the framework's own vendor code.
+    excludePaths:
+        - vendor
+
+    # Level 5 is a pragmatic, non-blocking baseline for the current bootstrap
+    # phase. Raise it per-domain as the app grows (see laravel-architecture.md).
+    level: 5
+
+    treatPhpDocTypesAsCertain: false
+
+    # Merge casts returned by the casts() method (not only the $casts property).
+    parseModelCastsMethod: true
+
+    tmpDir: storage/framework/phpstan
+    resultCachePath: storage/framework/phpstan/resultCache.php

@@ -271,80 +271,93 @@ Unique: (platform_id, event).
 
 ## Real-Time Chat Domain
 
-### `external_users`
+> Implemented in Phase 3D (`2026_09_23_000001`–`000003`) + **Phase 3E
+> presence columns (`2026_09_23_000004` on `platform_external_user_map`)**. The
+> identity map table is the Phase 3A/3C **`platform_external_user_map`** (docs
+> section "Integration Domain — identity mapping"); it plays the role that the
+> earlier-planned `external_users` table was going to fill, holding ONLY identity
+> references (per §15 Data Strategy) — there is no `external_users` table.
 
-A reference to a user on a client platform. **Not** a copy of the user's profile.
+### `platform_external_user_map` — presence columns (Phase 3E)
+
+Basic presence is DB-resident (no Redis): the map row owns the online/offline
+state + last-heartbeat timestamp, and staleness is always *computed* from
+`presence_seen_at` (see `docs/realtime-chat.md` §Presence).
 
 | Column | Type | Notes |
 |---|---|---|
-| id | BIGINT UNSIGNED PK | |
-| platform_id | FK → platforms.id | |
-| external_user_id | VARCHAR(255) | The client's user ID |
-| display_name | VARCHAR(255) | Cached for conversation rendering |
-| profile_photo_url | VARCHAR(2048) NULL | Cached |
-| email | VARCHAR(255) NULL | Only if platform supplies |
-| phone | VARCHAR(32) NULL | Only if required |
-| profile_cache | JSON NULL | Optional cached profile fields used by widget |
-| last_seen_at | TIMESTAMP NULL | Presence signal |
-| last_synced_at | TIMESTAMP NULL | |
-| first_seen_at | TIMESTAMP | |
+| presence_status | ENUM(online, offline) DEFAULT offline | Effective presence; also `ExternalUserMap::PRESENCE_ONLINE/OFFLINE` |
+| presence_seen_at | TIMESTAMP NULL | Last heartbeat / transition time; stale reading = offline |
+| (existing last_seen_at) | TIMESTAMP NULL | Identity-map "seen" timestamp — reconciled on every heartbeat |
 
-Unique: (platform_id, external_user_id).
-Indices: `platform_id`, `display_name`.
-
-**Important:** MyVivahAI does not store full matrimony profiles. Cached fields are limited to what the widget renders. Refresh of cache is triggered by client API calls at runtime.
+Index: `(platform_id, presence_status)` — `external_user_map_presence_platform`
+(per-platform sweep in `chat:presence-sweep`).
 
 ### `conversations`
+
+A platform-scoped message thread. Identified to clients by a public ULID; deduplicated
+server-side by a deterministic pair key.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | BIGINT UNSIGNED PK | |
 | public_id | CHAR(26) UNIQUE | Public conversation ID (ULID) sent to clients |
-| platform_id | FK → platforms.id | |
-| participant_key | CHAR(64) | Normalized sorted participant pair, e.g., `<lower_id>:<higher_id>` (lexicographic) for dedup |
-| last_message_id | FK → messages.id NULL | Denormalized |
+| platform_id | FK → platforms.id | Isolation root |
+| participant_key | CHAR(64) | Normalized sorted participant-map pair, e.g., `<lowerMapId>:<higherMapId>` (numeric sort) — deterministic resolve |
+| status | ENUM(active, archived, closed) DEFAULT active | Lifecycle; NO soft delete (keeps pair key authoritative) |
+| last_message_id | BIGINT UNSIGNED NULL | Denormalized; **no FK** (circular conversations↔messages — see migration comment) |
 | last_message_at | TIMESTAMP NULL | For sorting conversation list |
-| status | ENUM(active, archived, closed) | |
-| created_at | TIMESTAMP | |
-| updated_at | TIMESTAMP | |
+| last_message_excerpt | VARCHAR(255) NULL | `Str::limit(messages.content, config('chat.message.excerpt_length'))` |
+| last_message_sender_external_user_map_id | BIGINT UNSIGNED NULL | Denormalized sender echo |
+| created_at / updated_at | TIMESTAMP | |
 
-Unique: (platform_id, participant_key).
-Indices: `platform_id`, `last_message_at`.
+Unique: `(platform_id, participant_key)` — `conversations_platform_pair`.
+Index: `(platform_id, last_message_at)` — `conversations_platform_recent` (list ordering).
+Public id: `conversations_public_id_unique`.
 
 ### `conversation_participants`
 
+Membership + per-user read state (unread fast-path lives here so listing is O(1)).
+
 | Column | Type | Notes |
 |---|---|---|
 | id | BIGINT UNSIGNED PK | |
-| conversation_id | FK → conversations.id | |
-| platform_id | FK → platforms.id | |
-| external_user_id | FK → external_users.id | |
-| last_read_message_id | FK → messages.id NULL | Read state |
-| unread_count | INT DEFAULT 0 | Display fast-path |
-| joined_at | TIMESTAMP | |
+| conversation_id | FK → conversations.id (CASCADE) | |
+| platform_id | FK → platforms.id (CASCADE) | Denormalized tenant |
+| external_user_map_id | FK → platform_external_user_map.id (CASCADE) | The participant's identity map |
+| last_read_message_id | BIGINT UNSIGNED NULL FK → messages.id (SET NULL) | Read cursor (internal id; opaque to clients) |
+| last_read_at | TIMESTAMP NULL | When the cursor was last advanced |
+| unread_count | INT UNSIGNED DEFAULT 0 | Display fast-path; incremented on send, reset on read — inside the same transactions |
+| joined_at | TIMESTAMP DEFAULT CURRENT_TIMESTAMP | |
 | left_at | TIMESTAMP NULL | |
+| created_at / updated_at | TIMESTAMP | |
 
-Unique: (conversation_id, external_user_id).
-Indices: (platform_id, external_user_id) — for "list my conversations."
+Unique: `(conversation_id, external_user_map_id)` — `conversation_participants_seat` (one seat per user).
+Index: `(platform_id, external_user_map_id)` — `conversation_participants_user_convs` ("list my conversations").
+Index: `(conversation_id, last_read_message_id)` — `conversation_participants_read`.
 
 ### `messages`
 
+A single chat entry, STRICTLY platform-scoped and idempotent under a client key.
+
 | Column | Type | Notes |
 |---|---|---|
-| id | BIGINT UNSIGNED PK | |
-| public_id | CHAR(26) UNIQUE | Public message ID |
-| conversation_id | FK → conversations.id | |
-| sender_user_id | FK → external_users.id | |
-| type | ENUM(text, image, file, system) | Text at MVP |
+| id | BIGINT UNSIGNED PK | Internal PK; used as the cursor in history pagination |
+| public_id | CHAR(26) UNIQUE | Public message ID (ULID) |
+| platform_id | FK → platforms.id (CASCADE) | Isolation root |
+| conversation_id | FK → conversations.id (CASCADE) | |
+| sender_external_user_map_id | BIGINT UNSIGNED NULL FK → platform_external_user_map.id (SET NULL) | NULLABLE (MySQL requires it for SET NULL) |
+| type | ENUM(text, image, file, system) DEFAULT text | Text at MVP |
+| status | ENUM(sent, delivered, read) DEFAULT sent | Delivery lifecycle |
 | content | TEXT | |
-| client_message_id | CHAR(64) NULL | Idempotency key from sender widget |
-| status | ENUM(sent, delivered, read) DEFAULT sent | |
-| created_at | TIMESTAMP | |
-| updated_at | TIMESTAMP | |
+| client_message_id | CHAR(64) NULL | Idempotency key from the sender widget |
+| deleted_at | TIMESTAMP NULL | Soft delete reserved for a future recall scenario (nothing deletes at MVP) |
+| created_at / updated_at | TIMESTAMP | |
 
-Indices: `conversation_id`, `created_at`, `sender_user_id`.
-Unique: (conversation_id, client_message_id) — prevents duplicate inserts.
-Soft delete: yes (message recall scenario, future).
+Unique: `(platform_id, conversation_id, client_message_id)` — `messages_platform_conversation_client`.
+Index: `(conversation_id, id)` — `messages_conversation_cursor` (cursor pagination).
+Index: `(conversation_id, created_at)` — `messages_conversation_created`.
+Index: `sender_external_user_map_id` — `messages_sender_map`.
 
 ### `message_statuses`
 
@@ -429,11 +442,11 @@ Job definitions, status, payloads, and results for the Data Entry Agent.
 | platform_integrations 1—N api_endpoint_configs | One per capability |
 | platform_integrations 1—N api_credentials | |
 | platform_integrations 1—N api_test_logs | |
-| platforms 1—N external_users | |
+| platforms 1—N platform_external_user_map | Identity references (the "external users" domain) |
 | platforms 1—N conversations | |
 | conversations 1—2 conversation_participants | Exactly two at MVP |
 | conversations 1—N messages | |
-| external_users 1—N messages (as sender) | |
+| platform_external_user_map 1—N messages (as sender) | |
 | messages 1—N message_statuses | |
 | platforms 1—1 widget_configs (MVP) | |
 | platforms 1—1 platform_service_access (per service) | |
@@ -446,9 +459,10 @@ Every chat/integration/config table carries a `platform_id` column and is querie
 
 Rules:
 
-- `external_users`: UNIQUE (platform_id, external_user_id)
+- `platform_external_user_map`: UNIQUE (platform_id, external_user_id)
 - `conversations`: UNIQUE (platform_id, participant_key); always filtered by platform_id
-- `messages`: reachable only through conversations; conversation platform_id must equal caller's platform
+- `conversation_participants`: seat UNIQUE (conversation_id, external_user_map_id); always filtered by platform_id
+- `messages`: UNIQUE (platform_id, conversation_id, client_message_id); reachable only through conversations; conversation platform_id must equal caller's platform
 - `platform_integrations`: UNIQUE (platform_id, service_id)
 - `widget_configs`: UNIQUE platform_id
 - `api_credentials/api_endpoint_configs`: only reachable via platform_integrations belonging to the platform
@@ -471,7 +485,7 @@ No cross-platform foreign-key paths exist between chat tables of different platf
 | api_endpoint_configs | Yes | Yes |
 | api_credentials | Yes | Yes |
 | api_test_logs | No (append-only; prune later) | created_at |
-| external_users | No (persist references) | Yes |
+| platform_external_user_map | No (persist identity references) | Yes |
 | conversations | Yes (archived) | Yes |
 | conversation_participants | No | Yes |
 | messages | Yes (recall) | Yes |
@@ -499,8 +513,8 @@ They are used in embed scripts, WebSocket channels, and client HTTP payloads, an
 | Conversation list perf | Denormalized `last_message_at`; paginate via cursor |
 | Hot platform contention | Platform-level sharding later (open decision) |
 | Unread count recompute | Incremental updates + periodic reconciliation job |
-| Search on external_users | Backed by client platform's search API (MyVivahAI does not index full user sets) |
-| Presence scale | Redis TTL-based presence, not MySQL |
+| Search on external users | Backed by client platform's search API (MyVivahAI does not index full user sets) |
+| Presence scale | **DB-backed presence (Phase 3E), Redis optional** — `presence_status`/`presence_seen_at` on `platform_external_user_map` + computed staleness + `chat:presence-sweep` cron; a future Redis-backed profile is an optional optimization, not a dependency |
 | JSON columns growth | Keep bounded; move to child tables when analytical needs arise |
 
 ---

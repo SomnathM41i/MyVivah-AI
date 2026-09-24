@@ -1,0 +1,115 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* MyVivahAI brand — deep "vivah" rose (matrimony) */
+    --color-brand-50: #fdf2f4;
+    --color-brand-100: #fbe3e8;
+    --color-brand-200: #f7c7d1;
+    --color-brand-300: #f09fb0;
+    --color-brand-400: #e66a89;
+    --color-brand-500: #d84467;
+    --color-brand-600: #bc2e55;
+    --color-brand-700: #a02347;
+    --color-brand-800: #842044;
+    --color-brand-900: #6e1f3d;
+    --color-brand-950: #410c20;
+
+    /* AI accent — violet */
+    --color-accent-50: #f4f0ff;
+    --color-accent-100: #ece4ff;
+    --color-accent-200: #dbceff;
+    --color-accent-300: #c0a7ff;
+    --color-accent-400: #a276ff;
+    --color-accent-500: #8647fb;
+    --color-accent-600: #7728ee;
+    --color-accent-700: #671bd0;
+    --color-accent-800: #5518a9;
+    --color-accent-900: #47178b;
+    --color-accent-950: #2b0a5e;
+
+    /* Neutrals */
+    --color-ink: #15121a;
+    --color-ink-soft: #2a2530;
+    --color-paper: #fcfbfa;
+
+    --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    --animate-fade-in: fade-in 0.5s ease-out both;
+    --animate-float: float 6s ease-in-out infinite;
+
+    @keyframes fade-up {
+        from {
+            opacity: 0;
+            transform: translateY(14px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes fade-in {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes float {
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-paper text-ink antialiased;
+        text-rendering: optimizeLegibility;
+    }
+
+    ::selection {
+        @apply bg-brand-600 text-white;
+    }
+}
+
+@layer components {
+    /* Reusable section container for marketing pages. */
+    .container-x {
+        @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+    }
+
+    /* Soft brand gradient headline text for hero/section headers. */
+    .text-gradient {
+        @apply bg-gradient-to-r from-brand-600 via-brand-500 to-accent-500 bg-clip-text text-transparent;
+    }
+
+    /* Subtle grid backdrop used behind heroes. */
+    .bg-grid {
+        background-image: linear-gradient(to right, rgb(15 23 42 / 0.045) 1px, transparent 1px),
+            linear-gradient(to bottom, rgb(15 23 42 / 0.045) 1px, transparent 1px);
+        background-size: 44px 44px;
+    }
+
+    /* Focus ring shared by form controls. */
+    .focus-ring {
+        @apply focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500;
+    }
+}

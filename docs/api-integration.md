@@ -6,6 +6,8 @@ After purchasing the Real-Time Chat service, the client platform owner accesses 
 
 **Note:** The client platform configures MyVivahAI to call *the client's own* external APIs. These are the client's provided endpoints, not MyVivahAI's endpoints.
 
+**Status — backend foundation (Phases 3B-1/3B-2/3C, implemented & tested):** the server-side integration foundation behind this dashboard is in place — PASETO platform auth with an API-key state machine (`active → rotated → revoked`, one-time secret issuance, grace window, hard-revocation), a platform-scoped external-user identity reference map, platform-scope enforcement middleware, an append-only security audit trail, a self-service integration API (`integration/keys`, `integration/config`, `users` — see `integration-api.md`), and an isolation-safe per-platform rate limit. The **dashboard UI** itself (steps below) is still future work; persistence/partials for several pieces (endpoint configs, test logs, capability records) are not yet built — this doc describes the planned UX.
+
 ---
 
 ## Integration Steps
