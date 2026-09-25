@@ -23,7 +23,7 @@ Required fields:
 | Phone Number | Open decision | May be required for SMS verification |
 | Password | Yes | Must meet strength requirements |
 | Company / Platform Name | Yes | Name of the external matrimony platform |
-| Website URL | Yes | URL of the external platform |
+| Website URL | No | Optional HTTPS URL of the external platform |
 
 ### Step 3: Email Verification
 
@@ -48,36 +48,23 @@ After email verification, the user can log in with email and password.
 
 ## Platform Onboarding (Post-Registration)
 
-After first login, the platform owner is guided through an onboarding flow:
+Signup creates the account, its first platform profile, and the owner's accepted platform-admin assignment. After email verification and first login, the owner continues onboarding in the dashboard:
 
-### Step 1: Platform Profile Setup
+### Step 1: Service Selection
 
-The owner provides additional platform details:
+The owner sees active services in Dashboard → Services. Real-Time Chat is the first available service.
 
-| Field | Required | Notes |
-|---|---|---|
-| Platform Display Name | Yes | How the platform appears in MyVivahAI |
-| Industry / Category | Yes | Primary category (matrimony, dating, etc.) |
-| Primary Contact Name | Yes | Technical or business contact |
-| Primary Contact Email | Yes | For integration support |
-| Primary Contact Phone | Open decision | Optional |
-| Platform Description | Optional | Brief description |
+### Step 2: Plan Selection
 
-### Step 2: Service Selection
+For each service, the owner chooses an active plan. The production deployment provisions the zero-price Free chat plan only; demo Growth and Business prices are not published. The Free plan activates immediately. Activation provisions the service entitlement, API integration, and a primary API secret shown once in Dashboard → Integrations.
 
-The owner sees available services and selects one or more. Initially, only "Real-Time Chat" is available.
+When paid plans are published, selections are stored as pending requests. They do not grant access or create a payment. MyVivahAI reviews the request and handles invoicing/payment manually; there is no online checkout or self-service approval flow. Until paid prices are approved and published, owners can contact support for current options.
 
-### Step 3: Plan Selection
+### Step 3: API and Widget Setup
 
-For each selected service, the owner sees available plans and chooses one.
+For active services, Dashboard → Integrations provides the API base URL and client ID, lets the owner rotate the client secret, configure widget website origins, and configure/test the external user-search endpoint. The client secret stays server-side. The platform backend must create a short-lived widget session for its authenticated external user before rendering the widget.
 
-### Step 4: Payment
-
-The owner selects a payment method and completes payment.
-
-### Step 5: Activation
-
-After payment verification, the service subscription is activated and the relevant dashboard section becomes available.
+The external platform remains responsible for its member visibility, eligibility, and block rules in its search endpoint.
 
 ---
 

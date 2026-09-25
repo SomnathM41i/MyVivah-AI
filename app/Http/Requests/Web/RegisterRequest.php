@@ -34,7 +34,7 @@ class RegisterRequest extends FormRequest
             ],
             'password' => ['required', 'confirmed', Password::defaults()],
             'platform_name' => ['required', 'string', 'max:255'],
-            'website_url' => ['nullable', 'string', 'max:2048'],
+            'website_url' => ['nullable', 'url', 'starts_with:https://', 'max:2048'],
             'terms' => ['accepted'],
         ];
     }

@@ -4,6 +4,12 @@
 
 This document describes how a platform subscribes to services, purchases plans, handles payments, and gains (or loses) access to service functionality.
 
+## Current Dashboard Behavior
+
+Dashboard → Services lists active plans. Production deployment provisions the zero-price Free chat plan only; the demo Growth and Business prices are not published. Selecting a zero-price plan activates it immediately, grants the service entitlement, and provisions the API integration and primary key if absent. The new API secret is shown once in Dashboard → Integrations; an owner can explicitly rotate it later.
+
+When paid plans are published, selecting one creates a `pending` subscription and a durable support contact request. It does not grant access or create a payment. The current product has no online checkout or admin approval screen; staff review and activate paid requests manually.
+
 ---
 
 ## Key Terminology

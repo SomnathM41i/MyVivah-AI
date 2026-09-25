@@ -4,12 +4,19 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
+use App\Mail\ContactMessageMail;
+use App\Models\ContactMessage;
+use App\Models\Plan;
 use App\Models\Platform;
+use App\Models\Service;
 use App\Models\Subscription;
+use App\Services\ApiKeyService;
+use App\Services\DashboardServiceEnrollment;
 use App\Services\ExternalPlatformUserSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -37,12 +44,82 @@ class DashboardController extends Controller
     public function services(Request $request): View
     {
         $platform = $this->platformFor($request);
+        $services = Service::query()
+            ->where('is_active', true)
+            ->with(['plans' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')])
+            ->orderBy('sort_order')
+            ->get();
+        $subscriptionsByService = $platform?->subscriptions()
+            ->whereIn('status', ['active', 'pending'])
+            ->with('plan')
+            ->latest('id')
+            ->get()
+            ->groupBy('service_id') ?? collect();
 
         return view('dashboard.services', [
             'platform' => $platform,
-            'serviceAccess' => $platform->serviceAccess ?? collect(),
+            'services' => $services,
+            'serviceAccess' => $platform?->serviceAccess()->get() ?? collect(),
+            'activeSubscriptionByService' => $subscriptionsByService->map(fn ($items) => $items->firstWhere('status', 'active')),
+            'pendingSubscriptionByService' => $subscriptionsByService->map(fn ($items) => $items->firstWhere('status', 'pending')),
             'breadcrumbs' => ['Dashboard' => null],
         ]);
+    }
+
+    public function selectPlan(Request $request, string $planPublicId, DashboardServiceEnrollment $enrollment): RedirectResponse
+    {
+        $platform = $this->platformFor($request);
+        abort_unless($platform !== null, 404);
+
+        $plan = Plan::query()
+            ->where('public_id', $planPublicId)
+            ->where('is_active', true)
+            ->whereHas('service', fn ($query) => $query->where('is_active', true))
+            ->firstOrFail();
+
+        $result = $enrollment->enroll($platform, $plan);
+
+        if ($result['status'] === 'pending') {
+            if ($result['request_created'] ?? false) {
+                $contact = ContactMessage::query()->create([
+                    'name' => $request->user()->name,
+                    'company' => $platform->name,
+                    'email' => strtolower($request->user()->email),
+                    'message' => sprintf(
+                        'Paid plan review requested: %s (%s %s / %s) for service %s. Platform public ID: %s. A pending subscription is recorded in the dashboard.',
+                        $plan->name,
+                        strtoupper($plan->currency),
+                        number_format((float) $plan->price, 2),
+                        $plan->billing_period,
+                        $plan->service?->name ?? 'service',
+                        $platform->public_id,
+                    ),
+                    'ip_hash' => hash('sha256', $request->ip() ?? ''),
+                    'source_url' => route('dashboard.subscription'),
+                ]);
+
+                if (config('mail.to.address') !== null) {
+                    try {
+                        Mail::to(config('mail.to.address'))->send(new ContactMessageMail($contact));
+                    } catch (\Throwable $exception) {
+                        report($exception);
+                    }
+                }
+            }
+
+            return redirect()->route('dashboard.subscription')->with('status', 'Your paid plan request has been recorded. It will remain pending until our team reviews it; no paid access has been enabled.');
+        }
+
+        $message = (float) $plan->price <= 0
+            ? 'The Free plan is active. Configure your API and widget integration below.'
+            : 'This plan is already active for your platform.';
+        $redirect = redirect()->route('dashboard.integrations')->with('status', $message);
+
+        if ($result['api_secret'] !== null) {
+            $redirect->with('api_secret_once', $result['api_secret']);
+        }
+
+        return $redirect;
     }
 
     /**
@@ -52,16 +129,72 @@ class DashboardController extends Controller
     public function integrations(Request $request): View
     {
         $platform = $this->platformFor($request);
+        $integration = $platform?->integration;
 
         return view('dashboard.integrations', [
             'platform' => $platform,
-            'integration' => $platform?->integration,
-            'searchEndpoint' => $platform?->integration?->user_search_endpoint,
-            'searchAuthType' => $platform?->integration?->user_search_auth_type,
-            'searchHeader' => $platform?->integration?->user_search_auth_header,
-            'searchSecretConfigured' => filled($platform?->integration?->user_search_auth_secret),
+            'integration' => $integration,
+            'primaryApiKey' => $integration?->primaryApiKey(),
+            'canUseApi' => $platform?->serviceAccess()
+                ->where('has_access', true)
+                ->where(fn ($query) => $query->whereNull('effective_until')->orWhere('effective_until', '>', now()))
+                ->exists() ?? false,
+            'widgetOrigins' => $integration?->allowed_origins ?? [],
+            'searchEndpoint' => $integration?->user_search_endpoint,
+            'searchAuthType' => $integration?->user_search_auth_type,
+            'searchHeader' => $integration?->user_search_auth_header,
+            'searchSecretConfigured' => filled($integration?->user_search_auth_secret),
             'breadcrumbs' => ['Dashboard' => null],
         ]);
+    }
+
+    public function rotateApiKey(Request $request, ApiKeyService $keys): RedirectResponse
+    {
+        $platform = $this->platformFor($request);
+        abort_unless($platform !== null && $platform->integration !== null, 404);
+        abort_unless($platform->serviceAccess()
+            ->where('has_access', true)
+            ->where(fn ($query) => $query->whereNull('effective_until')->orWhere('effective_until', '>', now()))
+            ->exists(), 403);
+
+        [, $secret] = $keys->rotate($platform->integration);
+
+        return back()
+            ->with('status', 'A new API secret was created. The previous key remains valid during the configured rotation grace period.')
+            ->with('api_secret_once', $secret);
+    }
+
+    public function updateWidgetOrigins(Request $request): RedirectResponse
+    {
+        $platform = $this->platformFor($request);
+        abort_unless($platform !== null && $platform->integration !== null, 404);
+
+        $validated = $request->validate([
+            'widget_origins' => ['required', 'string', 'max:4000'],
+        ]);
+        $origins = array_values(array_unique(array_filter(array_map(
+            static fn (string $origin): string => rtrim(trim($origin), '/'),
+            preg_split('/\\R/u', $validated['widget_origins']) ?: [],
+        ))));
+
+        validator(['origins' => $origins], [
+            'origins' => ['required', 'array', 'min:1', 'max:20'],
+            'origins.*' => ['required', 'url', 'starts_with:https://', 'max:255'],
+        ])->validate();
+
+        foreach ($origins as $origin) {
+            $parts = parse_url($origin);
+            if ($parts === false || empty($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment']) || (($parts['path'] ?? '') !== '')) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['widget_origins' => 'Enter only HTTPS website origins, such as https://example.com, without a path.']);
+            }
+        }
+
+        $integration = $platform->integration;
+        $integration->base_domain = $origins[0];
+        $integration->allowed_origins = $origins;
+        $integration->save();
+
+        return back()->with('status', 'Widget website origins saved. The widget will return browser responses only to these origins.');
     }
 
     public function updateSearchIntegration(Request $request): RedirectResponse
@@ -124,6 +257,7 @@ class DashboardController extends Controller
         return view('dashboard.subscription', [
             'platform' => $platform,
             'activeSubscription' => $this->activeSubscription($platform),
+            'subscriptions' => $platform?->subscriptions()->with(['plan', 'service'])->latest('id')->get() ?? collect(),
             'breadcrumbs' => ['Dashboard' => null],
         ]);
     }

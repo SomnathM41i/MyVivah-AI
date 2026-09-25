@@ -27,9 +27,13 @@ class EmailVerificationNotificationController extends Controller
             ->first();
 
         if ($user !== null) {
-            $user->notify(new VerifyEmailNotification($user->platforms()->latest('id')->value('name') ?? ''));
+            try {
+                $user->notify(new VerifyEmailNotification($user->platforms()->latest('id')->value('name') ?? ''));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
-        return back()->with('status', 'If that email needs verification, we\'ve sent a fresh link.');
+        return back()->with('status', 'If that email belongs to an unverified account, a fresh verification link has been requested.');
     }
 }

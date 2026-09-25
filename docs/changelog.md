@@ -2,6 +2,14 @@
 
 > Format: Keep a Changelog style (https://keepachangelog.com/en/1.1.0/).
 
+### Added — 2026-09-25 (Self-service service onboarding)
+
+- Connected the dashboard service catalog to active plans. Free plans activate immediately and provision the service entitlement, API integration, and a one-time API secret; paid plan selections create pending requests for manual review without granting access or charging the platform.
+- Added one-time API-secret display and rotation, widget website-origin configuration, hosted widget session setup instructions, and pending subscription visibility.
+- Kept signup's existing account + first-platform creation flow and made account creation succeed with a resend-verification path when the verification email provider fails.
+- Added an idempotent production catalog seeder for the zero-price Free chat plan; demo paid prices are not published on production.
+- **Limit:** no online checkout, payment verification dashboard, or self-service paid-plan approval exists yet. Paid plan choices appear after their pricing is approved and published.
+
 ### Added — 2026-09-25 (External platform user search and chat integration)
 
 - Added the versioned external search contract (`docs/external-user-search-v1.md`) and Core PHP/PDO sample. Client APIs authenticate the platform and requester server-to-server, apply visibility and chat eligibility, return minimal fields, and paginate with opaque cursors.

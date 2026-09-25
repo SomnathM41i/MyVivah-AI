@@ -33,11 +33,17 @@ class RegisteredUserController extends Controller
     ): RedirectResponse {
         [$user, $platform] = $accounts->register($request->validated());
 
-        $user->notify(new VerifyEmailNotification($platform->name));
+        try {
+            $user->notify(new VerifyEmailNotification($platform->name));
+            $status = 'Account created! One last step — we sent a verification link to '.$user->email.'.';
+        } catch (\Throwable $exception) {
+            report($exception);
+            $status = 'Your account was created, but we could not send the verification email right now. Use the resend form below to try again.';
+        }
 
         return redirect()
             ->route('verification.notice')
             ->with('registration_email', $user->email)
-            ->with('status', 'Account created! One last step — we sent a verification link to '.$user->email.'.');
+            ->with('status', $status);
     }
 }

@@ -100,6 +100,7 @@ fi
 
 composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 php artisan migrate --force
+php artisan db:seed --class=ProductionPlanSeeder --force
 php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache

@@ -4,8 +4,8 @@
             <div class="flex items-start gap-3">
                 <x-icon name="mail" class="mt-0.5 h-5 w-5 shrink-0" />
                 <p>
-                    We sent a verification link to <strong>{{ $email }}</strong>. Click it to verify your
-                    email and activate your account. The link expires in 60 minutes.
+                    Verify <strong>{{ $email }}</strong> to activate your account. Verification links expire in 60 minutes.
+                    If you do not receive one, use the resend form below.
                 </p>
             </div>
         </div>

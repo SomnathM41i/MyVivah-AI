@@ -86,7 +86,16 @@ Route::post('/logout', LogoutController::class)
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
+    Route::post('/dashboard/services/plans/{planPublicId}', [DashboardController::class, 'selectPlan'])
+        ->middleware('throttle:10,1')
+        ->name('dashboard.services.plans.select');
     Route::get('/dashboard/integrations', [DashboardController::class, 'integrations'])->name('dashboard.integrations');
+    Route::post('/dashboard/integrations/api-key/rotate', [DashboardController::class, 'rotateApiKey'])
+        ->middleware('throttle:3,1')
+        ->name('dashboard.integrations.api-key.rotate');
+    Route::put('/dashboard/integrations/widget-origins', [DashboardController::class, 'updateWidgetOrigins'])
+        ->middleware('throttle:6,1')
+        ->name('dashboard.integrations.widget-origins.update');
     Route::put('/dashboard/integrations/user-search', [DashboardController::class, 'updateSearchIntegration'])->middleware('throttle:6,1')->name('dashboard.integrations.user-search.update');
     Route::post('/dashboard/integrations/user-search/test', [DashboardController::class, 'testSearchIntegration'])->middleware('throttle:6,1')->name('dashboard.integrations.user-search.test');
     Route::get('/dashboard/subscription', [DashboardController::class, 'subscription'])->name('dashboard.subscription');

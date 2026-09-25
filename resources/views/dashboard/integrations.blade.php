@@ -1,6 +1,13 @@
 <x-layout.dashboard title="Integrations" :breadcrumbs="$breadcrumbs">
     @include('partials.dashboard.platform-summary', ['platform' => $platform])
 
+    @if (session('status'))
+        <div class="mb-6 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{{ session('status') }}</div>
+    @endif
+    @if ($errors->any())
+        <ul class="mb-6 rounded-xl bg-red-50 p-4 text-sm text-red-700">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+    @endif
+
     <div class="grid gap-6 lg:grid-cols-2">
         <x-card>
             <div class="flex items-center justify-between">
@@ -60,12 +67,15 @@
             <ul class="mt-4 space-y-3 text-sm">
                 @php
                     $endpoints = [
-                        ['method' => 'POST', 'path' => '/api/v1/auth/token', 'desc' => 'Exchange client creds for a PASETO token'],
-                        ['method' => 'POST', 'path' => '/api/v1/auth/revoke', 'desc' => 'Revoke an issued token'],
-                        ['method' => 'GET',  'path' => '/api/v1/me', 'desc' => 'Platform identity + scopes'],
-                        ['method' => 'POST', 'path' => '/api/v1/conversations', 'desc' => 'Open a member chat conversation'],
-                        ['method' => 'GET',  'path' => '/api/v1/conversations/{id}/messages', 'desc' => 'Read message history'],
-                        ['method' => 'POST', 'path' => '/api/v1/messages', 'desc' => 'Send a chat message'],
+                        ['method' => 'POST', 'path' => '/api/v1/auth/token', 'desc' => 'Exchange client ID and secret for a short-lived API token'],
+                        ['method' => 'POST', 'path' => '/api/v1/auth/revoke', 'desc' => 'Revoke the presented API token'],
+                        ['method' => 'GET',  'path' => '/api/v1/platform/me', 'desc' => 'Read platform identity and service access'],
+                        ['method' => 'POST', 'path' => '/api/v1/users/verify', 'desc' => 'Create or refresh an external member reference'],
+                        ['method' => 'GET',  'path' => '/api/v1/users/{external_user_id}', 'desc' => 'Resolve a member reference'],
+                        ['method' => 'POST', 'path' => '/api/v1/chat/conversations', 'desc' => 'Open or create a member conversation'],
+                        ['method' => 'GET',  'path' => '/api/v1/chat/conversations/{id}/messages', 'desc' => 'Read conversation messages'],
+                        ['method' => 'POST', 'path' => '/api/v1/chat/conversations/{id}/messages', 'desc' => 'Send a conversation message'],
+                        ['method' => 'POST', 'path' => '/api/v1/widget/session', 'desc' => 'Create a short-lived widget session for a logged-in member'],
                     ];
                 @endphp
                 @foreach ($endpoints as $endpoint)
@@ -99,8 +109,55 @@
         </x-card>
     @else
         <x-card class="mt-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 class="font-semibold text-ink">API credentials</h3>
+                    <p class="mt-1 text-sm text-ink/60">Exchange your client ID and secret for a short-lived API token from your server.</p>
+                </div>
+                @if ($canUseApi)
+                    <form method="POST" action="{{ route('dashboard.integrations.api-key.rotate') }}">
+                        @csrf
+                        <button class="rounded-lg border border-brand-700 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50" type="submit">{{ $primaryApiKey ? 'Rotate API secret' : 'Create API secret' }}</button>
+                    </form>
+                @else
+                    <x-badge tone="neutral">Select a service plan first</x-badge>
+                @endif
+            </div>
+            @if (session('api_secret_once'))
+                <div class="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                    <h4 class="font-semibold text-amber-900">Copy this secret now</h4>
+                    <p class="mt-1 text-sm text-amber-800">It is shown once. Store it in your website's server-side secret storage; do not put it in browser code.</p>
+                    <label class="mt-3 block text-xs font-medium text-amber-900">Client secret
+                        <textarea readonly rows="2" class="mt-1 w-full select-all rounded-lg border border-amber-300 bg-white p-2 font-mono text-xs text-ink">{{ session('api_secret_once') }}</textarea>
+                    </label>
+                </div>
+            @endif
+            <dl class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                <div class="rounded-lg bg-ink/5 p-3"><dt class="text-ink/55">API base URL</dt><dd class="mt-1 break-all font-mono text-xs text-ink">{{ rtrim(config('app.url'), '/') }}/api/v1</dd></div>
+                <div class="rounded-lg bg-ink/5 p-3"><dt class="text-ink/55">Client ID</dt><dd class="mt-1 break-all font-mono text-xs text-ink">{{ $platform->public_id }}</dd></div>
+                <div class="rounded-lg bg-ink/5 p-3 sm:col-span-2"><dt class="text-ink/55">Credential status</dt><dd class="mt-1 text-ink">{{ $primaryApiKey ? 'Active key · '.substr($primaryApiKey->key_fingerprint, 0, 12) : 'No active API key yet' }}</dd></div>
+            </dl>
+            <div class="mt-5 rounded-xl bg-ink/5 p-4">
+                <h4 class="text-sm font-semibold text-ink">Server-side token request</h4>
+                <pre class="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs text-ink/70">POST {{ rtrim(config('app.url'), '/') }}/api/v1/auth/token
+Content-Type: application/json
+
+{"client_id":"{{ $platform->public_id }}","client_secret":"YOUR_SERVER_SIDE_SECRET"}</pre>
+                <p class="mt-2 text-xs text-ink/50">Use the returned short-lived access token from your backend for protected MyVivahAI API calls. Never place the client secret in HTML or JavaScript.</p>
+            </div>
+        </x-card>
+
+        <x-card class="mt-6">
             <h3 class="font-semibold text-ink">Widget integration</h3>
             <p class="mt-2 text-sm text-ink/60">Use the hosted widget client with a short-lived widget session created by your server. Keep the platform client secret on your server; never place it in browser JavaScript.</p>
+            <form method="POST" action="{{ route('dashboard.integrations.widget-origins.update') }}" class="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+                @csrf @method('PUT')
+                <label class="text-sm font-medium text-ink">Allowed website origins (one HTTPS origin per line)
+                    <textarea name="widget_origins" required rows="3" class="mt-1 w-full rounded-lg border border-ink/15 p-2 font-mono text-xs" placeholder="https://matrimony.example">{{ old('widget_origins', implode("\n", $widgetOrigins)) }}</textarea>
+                    <span class="mt-1 block text-xs font-normal text-ink/50">Enter only the origin, with no page path. Add staging and production domains on separate lines.</span>
+                </label>
+                <div class="flex items-end"><button class="rounded-lg border border-brand-700 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50" type="submit">Save origins</button></div>
+            </form>
             <dl class="mt-4 grid gap-3 text-sm md:grid-cols-2">
                 <div class="rounded-lg bg-ink/5 p-3">
                     <dt class="text-ink/55">Widget JavaScript</dt>
@@ -116,6 +173,23 @@
                     <p class="mt-1 text-xs text-ink/50">This route searches your configured external member directory. <code>/api/v1/widget/integration/users</code> only lists identities already recorded by MyVivahAI.</p>
                 </div>
             </dl>
+            <div class="mt-5 rounded-xl bg-ink/5 p-4">
+                <h4 class="text-sm font-semibold text-ink">Widget session flow</h4>
+                <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink/65">
+                    <li>Your server exchanges the client ID and secret at <code>/api/v1/auth/token</code>.</li>
+                    <li>Your server sends the logged-in member's own ID to <code>POST /api/v1/widget/session</code> using that API token.</li>
+                    <li>Your page initializes the widget with the returned short-lived session data and the hosted JavaScript below.</li>
+                </ol>
+                <pre class="mt-3 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs text-ink/70">&lt;script src="{{ url('/js/myvivah-widget.js') }}"&gt;&lt;/script&gt;
+&lt;script&gt;
+const widgetSession = widgetSessionReturnedByYourBackend;
+MyVivahAIWidget.init({
+  apiBaseUrl: "{{ url('/api/v1/widget') }}",
+  session: widgetSession
+});
+&lt;/script&gt;</pre>
+                <p class="mt-2 text-xs text-ink/50">The session endpoint and API credential belong on your backend. Never accept an external user ID directly from browser input.</p>
+            </div>
             <p class="mt-4 text-sm text-ink/60">For server-side session setup and the page embed, follow the widget integration guide provided with your platform onboarding.</p>
         </x-card>
     @endif
@@ -124,12 +198,6 @@
         <x-card class="mt-6">
             <h3 class="font-semibold text-ink">Widget user search API</h3>
             <p class="mt-2 text-sm text-ink/60">Search runs from MyVivahAI's backend against your user directory. Return only users visible and eligible to chat with the signed-in requester. Credentials stay server-side and are encrypted at rest.</p>
-            @if (session('status'))
-                <p class="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{{ session('status') }}</p>
-            @endif
-            @if ($errors->any())
-                <ul class="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-            @endif
             <form method="POST" action="{{ route('dashboard.integrations.user-search.update') }}" class="mt-5 grid gap-4 md:grid-cols-2">
                 @csrf @method('PUT')
                 <label class="text-sm font-medium text-ink">Search endpoint URL
