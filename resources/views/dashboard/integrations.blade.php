@@ -83,6 +83,43 @@
         </x-card>
     </div>
 
+    @if (! $platform)
+        <x-card class="mt-6">
+            <h3 class="font-semibold text-ink">Platform integrations are unavailable for this account</h3>
+            <p class="mt-2 text-sm leading-relaxed text-ink/60">
+                This account is not linked to a platform it owns or administers. Ask the platform owner to add this account as an accepted platform admin, then reopen Integrations. The API and widget settings are scoped to that platform.
+            </p>
+        </x-card>
+    @elseif (! $integration)
+        <x-card class="mt-6">
+            <h3 class="font-semibold text-ink">API integration is not provisioned</h3>
+            <p class="mt-2 text-sm leading-relaxed text-ink/60">
+                Platform: <strong class="text-ink">{{ $platform->name }}</strong> ({{ $platform->public_id }}). Its API integration record is missing, so search settings cannot be saved yet. Contact MyVivahAI support to provision this platform's integration.
+            </p>
+        </x-card>
+    @else
+        <x-card class="mt-6">
+            <h3 class="font-semibold text-ink">Widget integration</h3>
+            <p class="mt-2 text-sm text-ink/60">Use the hosted widget client with a short-lived widget session created by your server. Keep the platform client secret on your server; never place it in browser JavaScript.</p>
+            <dl class="mt-4 grid gap-3 text-sm md:grid-cols-2">
+                <div class="rounded-lg bg-ink/5 p-3">
+                    <dt class="text-ink/55">Widget JavaScript</dt>
+                    <dd class="mt-1 break-all font-mono text-xs text-ink">{{ url('/js/myvivah-widget.js') }}</dd>
+                </div>
+                <div class="rounded-lg bg-ink/5 p-3">
+                    <dt class="text-ink/55">Widget API base</dt>
+                    <dd class="mt-1 break-all font-mono text-xs text-ink">{{ url('/api/v1/widget') }}</dd>
+                </div>
+                <div class="rounded-lg bg-ink/5 p-3 md:col-span-2">
+                    <dt class="text-ink/55">Search route used by the widget</dt>
+                    <dd class="mt-1 break-all font-mono text-xs text-ink">GET {{ url('/api/v1/widget/users/search') }}?q=NAME&amp;limit=20</dd>
+                    <p class="mt-1 text-xs text-ink/50">This route searches your configured external member directory. <code>/api/v1/widget/integration/users</code> only lists identities already recorded by MyVivahAI.</p>
+                </div>
+            </dl>
+            <p class="mt-4 text-sm text-ink/60">For server-side session setup and the page embed, follow the widget integration guide provided with your platform onboarding.</p>
+        </x-card>
+    @endif
+
     @if ($integration)
         <x-card class="mt-6">
             <h3 class="font-semibold text-ink">Widget user search API</h3>
@@ -129,7 +166,7 @@
                 </label>
                 <div class="flex items-end"><button class="rounded-lg border border-brand-700 px-4 py-2 text-sm font-semibold text-brand-700" type="submit">Test connection</button></div>
             </form>
-            <p class="mt-4 text-xs text-ink/50">Contract: <code>docs/external-user-search-v1.md</code>. Embed-code generation and test/live configuration remain outstanding.</p>
+            <p class="mt-4 text-xs text-ink/50">The form saves your endpoint URL, exact HTTPS host, and shared bearer credential. The credential is encrypted at rest and never shown again.</p>
         </x-card>
     @endif
 </x-layout.dashboard>

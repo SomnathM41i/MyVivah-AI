@@ -163,7 +163,24 @@ class DashboardController extends Controller
      */
     private function platformFor(Request $request): ?Platform
     {
-        return $request->user()?->platforms()->latest('id')->first();
+        $user = $request->user();
+        if ($user === null) {
+            return null;
+        }
+
+        $ownedPlatform = $user->platforms()->latest('id')->first();
+        if ($ownedPlatform !== null) {
+            return $ownedPlatform;
+        }
+
+        return Platform::query()
+            ->whereHas('platformAdmins', function ($query) use ($user): void {
+                $query->where('user_id', $user->id)
+                    ->whereNotNull('accepted_at')
+                    ->whereIn('role', ['owner', 'admin', 'developer']);
+            })
+            ->latest('id')
+            ->first();
     }
 
     /**
