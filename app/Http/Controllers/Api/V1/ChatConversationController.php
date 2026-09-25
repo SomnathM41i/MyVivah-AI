@@ -11,6 +11,7 @@ use App\Http\Resources\ConversationParticipantResource;
 use App\Http\Resources\ConversationResource;
 use App\Models\Conversation;
 use App\Services\ChatConversationService;
+use App\Services\ExternalPlatformUserSearch;
 use App\Services\ExternalUserContext;
 use App\Services\ExternalUserService;
 use App\Services\ValidatedPasetoToken;
@@ -34,6 +35,7 @@ class ChatConversationController extends Controller
         private readonly ChatConversationService $conversations,
         private readonly ExternalUserContext $userContext,
         private readonly ExternalUserService $users,
+        private readonly ExternalPlatformUserSearch $search,
     ) {}
 
     /**
@@ -55,10 +57,16 @@ class ChatConversationController extends Controller
             throw new ApiException('INVALID_TOKEN', 'Missing platform context.', 401);
         }
 
-        /** @var list<string> $externalIds */
-        $externalIds = $request->validated('participant_external_ids');
-
         $widget = $request->attributes->get('widget_session');
+        if ($widget instanceof ValidatedWidgetSession) {
+            $candidate = $this->search->validateCandidate((string) $request->validated('candidate_token'), $validated->platform, $widget->externalUserId);
+            $this->search->assertTargetEligible($validated->platform, $widget->externalUserId, $candidate['target_id']);
+            $externalIds = [$widget->externalUserId, $candidate['target_id']];
+        } else {
+            /** @var list<string> $externalIds */
+            $externalIds = $request->validated('participant_external_ids');
+        }
+
         if ($widget instanceof ValidatedWidgetSession
             && ! in_array($widget->externalUserId, $externalIds, true)) {
             throw new ApiException(

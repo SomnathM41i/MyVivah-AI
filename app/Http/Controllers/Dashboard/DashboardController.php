@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers\Dashboard;
 
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Models\Platform;
 use App\Models\Subscription;
+use App\Services\ExternalPlatformUserSearch;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -52,8 +56,62 @@ class DashboardController extends Controller
         return view('dashboard.integrations', [
             'platform' => $platform,
             'integration' => $platform?->integration,
+            'searchEndpoint' => $platform?->integration?->user_search_endpoint,
+            'searchAuthType' => $platform?->integration?->user_search_auth_type,
+            'searchHeader' => $platform?->integration?->user_search_auth_header,
+            'searchSecretConfigured' => filled($platform?->integration?->user_search_auth_secret),
             'breadcrumbs' => ['Dashboard' => null],
         ]);
+    }
+
+    public function updateSearchIntegration(Request $request): RedirectResponse
+    {
+        $platform = $this->platformFor($request);
+        abort_unless($platform !== null, 404);
+        $integration = $platform->integration;
+        abort_unless($integration !== null, 404);
+
+        $data = $request->validate([
+            'user_search_endpoint' => ['required', 'url', 'starts_with:https://', 'max:2048'],
+            'user_search_auth_type' => ['required', 'in:bearer,header'],
+            'user_search_auth_header' => ['nullable', 'required_if:user_search_auth_type,header', 'regex:/^(?!(?:host|content-length|connection|accept|x-myvivaai-platform-id|x-myvivaai-request-id|x-myvivaai-requester-id)$)[A-Za-z][A-Za-z0-9-]{0,99}$/i'],
+            'user_search_auth_secret' => ['nullable', 'string', 'max:2000'],
+            'allowed_search_origin' => ['required', 'url', 'starts_with:https://', 'max:255'],
+        ]);
+
+        $integration->user_search_endpoint = $data['user_search_endpoint'];
+        $integration->user_search_auth_type = $data['user_search_auth_type'];
+        $integration->user_search_auth_header = $data['user_search_auth_type'] === 'header' ? $data['user_search_auth_header'] : null;
+        $searchHost = strtolower((string) parse_url($data['allowed_search_origin'], PHP_URL_HOST));
+        abort_if($searchHost === '', 422);
+        abort_unless($searchHost === strtolower((string) parse_url($data['user_search_endpoint'], PHP_URL_HOST)), 422);
+        $integration->user_search_allowed_hosts = array_values(array_unique(array_merge($integration->user_search_allowed_hosts ?? [], [$searchHost])));
+        if (filled($data['user_search_auth_secret'] ?? null)) {
+            $integration->user_search_auth_secret = Crypt::encryptString($data['user_search_auth_secret']);
+        }
+        $integration->save();
+
+        return back()->with('status', 'User-search integration saved. The credential is encrypted and will not be shown again.');
+    }
+
+    public function testSearchIntegration(Request $request, ExternalPlatformUserSearch $search): RedirectResponse
+    {
+        $platform = $this->platformFor($request);
+        abort_unless($platform !== null && $platform->integration !== null, 404);
+        $data = $request->validate([
+            'requester_external_user_id' => ['required', 'string', 'between:1,255', 'regex:/^[^\/]+$/u'],
+            'query' => ['required', 'string', 'min:2', 'max:100'],
+        ]);
+
+        try {
+            $result = $search->search($platform, $data['requester_external_user_id'], $data['query'], 1, null);
+        } catch (ApiException $exception) {
+            return back()->withErrors(['search_test' => $exception->getMessage()]);
+        }
+
+        $detail = $result['results'] === [] ? 'no eligible users for this sample query.' : count($result['results']).' eligible sample result(s).';
+
+        return back()->with('search_test_status', 'Connection succeeded; '.$detail);
     }
 
     /**

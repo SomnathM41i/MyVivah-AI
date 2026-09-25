@@ -2,6 +2,15 @@
 
 > Format: Keep a Changelog style (https://keepachangelog.com/en/1.1.0/).
 
+### Added — 2026-09-25 (External platform user search and chat integration)
+
+- Added the versioned external search contract (`docs/external-user-search-v1.md`) and Core PHP/PDO sample. Client APIs authenticate the platform and requester server-to-server, apply visibility and chat eligibility, return minimal fields, and paginate with opaque cursors.
+- Added endpoint, host allowlist, and encrypted credential fields to the existing `platform_integrations` row. Added a backend HTTP client with bounded timeouts, streamed response-size limit, schema validation, rate limiting, redirects disabled, endpoint restrictions, and redacted outcome logging.
+- Added `GET /api/v1/widget/users/search`, widget search results with thumbnail/display name/Load more/loading/empty/error states, and a short-lived encrypted candidate token. Conversation creation rejects raw target IDs from widget requests, rechecks live eligibility with the client API, creates a previously unmapped recipient reference, then reuses deterministic conversation creation.
+- Added dashboard search endpoint/credential form, a safe sample-query connection test, and `/api/v1/health/chat` database readiness check. MySQL remains authoritative; REST polling remains the shared-hosting fallback; realtime defaults off.
+- **Verified:** 176 PHPUnit tests / 1,351 assertions on SQLite; Pint `--test` passed; PHPStan level 5 passed; touched PHP files and Core PHP samples passed `php -l`.
+- **Not verified:** MySQL test suite not run because `phpunit.mysql.xml` targets `myvivah` and tests use `RefreshDatabase`; Node widget tests/build unavailable because `node`/`npm` are not installed; Hostinger deployment, backups/restores, cron, and live WebSocket delivery were not inspected.
+
 ### Added — 2026-09-24 (Phase 5A — Public Website, Web Auth & App Shell)
 
 - Completed the client-facing frontend layer per `docs/phase-5a-public-website-auth.md`. **Stack deviation (documented):** The 2026 outline mentions Laravel/Inertia/React/TS, but this project has always shipped Blade + Tailwind v4 + Vite + vanilla JS, and `docs/AGENTS.md` forbids unnecessary dependencies — so Phase 5A is **server-rendered Blade**, not an Inertia/SPA app. Fully tested + exit-verified on sqlite and MySQL.

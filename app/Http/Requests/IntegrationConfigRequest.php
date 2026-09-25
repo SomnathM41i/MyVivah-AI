@@ -34,6 +34,10 @@ class IntegrationConfigRequest extends ApiFormRequest
             'base_domain' => ['sometimes', 'nullable', 'url', 'max:255'],
             'allowed_origins' => ['sometimes', 'nullable', 'array', 'max:20'],
             'allowed_origins.*' => ['url', 'max:255'],
+            'user_search_endpoint' => ['sometimes', 'nullable', 'url', 'max:2048'],
+            'user_search_auth_type' => ['sometimes', 'nullable', 'in:bearer,header'],
+            'user_search_auth_header' => ['sometimes', 'nullable', 'regex:/^(?!(?:host|content-length|connection|accept|x-myvivaai-platform-id|x-myvivaai-request-id|x-myvivaai-requester-id)$)[A-Za-z][A-Za-z0-9-]{0,99}$/i'],
+            'user_search_auth_secret' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ];
     }
 }

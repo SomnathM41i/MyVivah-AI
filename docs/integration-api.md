@@ -311,7 +311,13 @@ its `jti`; subsequent requests → `401 TOKEN_REVOKED`.
 `conversations` (list/resolve-open/show), `conversations/{id}/read` (markRead),
 `conversations/{id}/messages` (cursor history + idempotent send),
 `presence` (heartbeat), `presence/me`, `presence/{external_user_id}`,
-`socket/auth`, `integration/users?q=`, `users/{external_user_id}`.
+`socket/auth`, `integration/users?q=` (mapped-reference reconciliation only), `users/search` (external client API search), `users/{external_user_id}`.
+
+### `GET /api/v1/widget/users/search`
+
+Requires the widget session and `realtime_chat:read`. Query parameters are `q` (2–100 chars), `limit` (1–20, default 20), and opaque `cursor`. Results and pagination are returned under `data.results` and `data.pagination`. Each result carries a short-lived encrypted `candidate_token`. Search is proxied to the configured client API; the widget cannot provide a URL or credentials. See [external-user-search-v1.md](external-user-search-v1.md).
+
+Widget conversation creation accepts `{ "candidate_token": "..." }`. Before it creates anything, MyVivahAI rechecks the target against the client search API with `target_external_user_id`; blocked/stale results return `403 CHAT_NOT_ALLOWED`. Raw target ID arrays remain available only on the authenticated platform server-to-server route.
 
 Differences from the platform routes:
 

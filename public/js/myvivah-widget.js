@@ -109,6 +109,7 @@
 
     displayName: function (ref) {
       if (!ref) return '?';
+      if (typeof ref.display_name === 'string' && ref.display_name) return ref.display_name;
       if (typeof ref.external_user_id === 'string' && ref.external_user_id) return ref.external_user_id;
       if (typeof ref.local_public_id === 'string' && ref.local_public_id) return ref.local_public_id;
       return 'Unknown';
@@ -453,6 +454,8 @@
       active: null,
       history: [],
       searchResults: [],
+      searchCursor: null,
+      searchHasMore: false,
       searching: false,
       searchQuery: '',
       presence: {},
@@ -468,6 +471,7 @@
     this._pollingStarted = false;
     this._listError = null;
     this._searchError = false;
+    this._searchSequence = 0;
     this._socketId = null;
 
     this.id = 'mvw-' + Math.random().toString(36).slice(2, 10);
@@ -645,6 +649,7 @@
       emptyThread: 'No messages yet — say hello!',
       emptySearch: 'No matching users.',
       searchHint: 'Type to search people…',
+      searchMinChars: 'Enter at least 2 characters.',
       unauthorized: 'Chat session expired. Please reload the page.',
       listError: 'Could not load conversations.',
       searchError: 'Search unavailable right now.',
@@ -1121,6 +1126,7 @@
     var self = this;
     q = String(q || '').trim();
     this.state.searchQuery = q;
+    var sequence = ++this._searchSequence;
     this.state.searching = true;
     this._renderSearchResults();
     if (!q) {
@@ -1129,13 +1135,44 @@
       this._renderSearchResults();
       return;
     }
-    this._api('integration/users', { query: { q: q, per_page: 20 } }).then(function (data) {
-      self.state.searchResults = data && Array.isArray(data) ? data : (data && data.data ? data.data : []);
+    if (q.length < 2) {
+      this.state.searching = false;
+      this.state.searchResults = [];
+      this._searchError = false;
+      this._renderSearchResults();
+      return;
+    }
+    this.state.searchCursor = null;
+    this.state.searchHasMore = false;
+    this._api('users/search', { query: { q: q, limit: 20 } }).then(function (data) {
+      if (sequence !== self._searchSequence || self.state.searchQuery !== q) return;
+      self.state.searchResults = data && Array.isArray(data.results) ? data.results : [];
+      self.state.searchCursor = data && data.pagination ? data.pagination.next_cursor : null;
+      self.state.searchHasMore = !!(data && data.pagination && data.pagination.has_more);
       self._searchError = false;
     }).catch(function () {
+      if (sequence !== self._searchSequence) return;
       self.state.searchResults = [];
       self._searchError = true;
     }).then(function () {
+      if (sequence !== self._searchSequence) return;
+      self.state.searching = false;
+      self._renderSearchResults();
+    });
+  };
+
+  Widget.prototype._loadMoreSearch = function () {
+    var self = this, q = this.state.searchQuery, cursor = this.state.searchCursor;
+    if (!q || !cursor || this.state.searching) return;
+    this.state.searching = true;
+    this._renderSearchResults();
+    this._api('users/search', { query: { q: q, limit: 20, cursor: cursor } }).then(function (data) {
+      if (self.state.searchQuery !== q) return;
+      self.state.searchResults = self.state.searchResults.concat(data && Array.isArray(data.results) ? data.results : []);
+      self.state.searchCursor = data && data.pagination ? data.pagination.next_cursor : null;
+      self.state.searchHasMore = !!(data && data.pagination && data.pagination.has_more);
+      self._searchError = false;
+    }).catch(function () { self._searchError = true; }).then(function () {
       self.state.searching = false;
       self._renderSearchResults();
     });
@@ -1144,11 +1181,10 @@
   Widget.prototype._openUser = function (map) {
     var self = this;
     var me = this.meId;
-    var them = core.displayName(map);
-    if (!me || !them) return;
+    if (!me || !map || !map.candidate_token) return;
     this._api('chat/conversations', {
       method: 'POST',
-      body: { participant_external_ids: [me, them] }
+      body: { candidate_token: map.candidate_token }
     }).then(function (conv) {
       self._replaceOrAppendConv(conv);
       self._enterThread(conv);
@@ -1306,6 +1342,10 @@
       this.searchResultsEl.appendChild(this._emptyNotice(this._t('searchHint'), false));
       return;
     }
+    if (q.length < 2 && !this.state.searching) {
+      this.searchResultsEl.appendChild(this._emptyNotice(this._t('searchMinChars'), false));
+      return;
+    }
     if (this.state.searching && !this.state.searchResults.length) {
       this.searchResultsEl.appendChild(this._emptyNotice(this._t('loading'), false));
       return;
@@ -1316,20 +1356,43 @@
     }
     if (!this.state.searchResults.length) {
       this.searchResultsEl.appendChild(this._emptyNotice(this._t('emptySearch'), false));
+      if (this.state.searchHasMore && !this.state.searching) {
+        var self = this;
+        var emptyMore = el('button', 'mwv-icon-btn', 'Load more');
+        emptyMore.type = 'button';
+        emptyMore.addEventListener('click', function () { self._loadMoreSearch(); });
+        this.searchResultsEl.appendChild(emptyMore);
+      }
       return;
     }
     var frag = document.createDocumentFragment();
     var self = this;
     this.state.searchResults.forEach(function (map) {
       var row = el('div', 'mwv-row');
-      row.appendChild(self._avatar(map));
+      var avatar = self._avatar(map);
+      if (map.profile_photo_url) {
+        var photo = el('img'); photo.src = map.profile_photo_url; photo.alt = ''; photo.referrerPolicy = 'no-referrer';
+        photo.style.cssText = 'width:40px;height:40px;border-radius:50%;object-fit:cover';
+        photo.onerror = function () { photo.remove(); };
+        avatar.textContent = ''; avatar.appendChild(photo);
+      }
+      row.appendChild(avatar);
       var main = el('div', 'mwv-row-main');
       main.appendChild(el('div', 'mwv-row-name', core.displayName(map)));
       row.appendChild(main);
+      var start = el('button', 'mwv-icon-btn', 'Start chat');
+      start.type = 'button'; start.addEventListener('click', function (event) { event.stopPropagation(); self._openUser(map); });
+      row.appendChild(start);
       row.addEventListener('click', function () { self._openUser(map); });
       frag.appendChild(row);
     });
     this.searchResultsEl.appendChild(frag);
+    if (this.state.searchHasMore) {
+      var more = el('button', 'mwv-icon-btn', this.state.searching ? this._t('loading') : 'Load more');
+      more.type = 'button'; more.disabled = this.state.searching;
+      more.addEventListener('click', function () { self._loadMoreSearch(); });
+      this.searchResultsEl.appendChild(more);
+    }
   };
 
   Widget.prototype._avatar = function (ref) {

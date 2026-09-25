@@ -39,7 +39,14 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            // Laravel 12's mail config uses MAIL_SCHEME. Keep compatibility
+            // with deployments that still provide the older MAIL_ENCRYPTION
+            // variable: SSL on port 465 requires implicit TLS (smtps).
+            'scheme' => env('MAIL_SCHEME', match (strtolower((string) env('MAIL_ENCRYPTION', ''))) {
+                'ssl' => 'smtps',
+                'tls', 'starttls' => 'smtp',
+                default => null,
+            }),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),

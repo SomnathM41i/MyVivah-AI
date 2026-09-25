@@ -21,8 +21,8 @@ This file tracks everything that is currently uncertain, missing, or needs confi
 ### Phase 4 — Widget (2026-09-23, EXIT VERIFIED)
 
 - Widget identity-token bootstrap resolved + implemented (`/api/v1/widget/session` → short-lived PASETO v4.local widget session; token-bound identity, audience isolation, jti revocation, expiry). See `docs/widget-integration.md` §Phase 4.
-- Widget **user search** is implemented against MyVivahAI-held identity references (`integration/users?q=`); delegation to the client's external **search API** is future work.
-- The dashboard "configure widget / generate embed code" UI (widget_configs) is still open — embedding today is via `window.MyVivahAIWidget.init({session:{...}})`. Shadow-DOM CSS isolation decision remains open (current build uses scoped wrapper).
+- Widget search delegates to the configured client search API through `GET /api/v1/widget/users/search`; signed candidate tokens protect the result-to-conversation handoff. The old identity-map search remains as a reconciliation endpoint.
+- Dashboard saves the platform search endpoint and encrypted credential and can test search using an operator-supplied requester/query. A widget config record, embed-code generator, test/live mode, and complete integration checklist remain outstanding. The Core PHP sample is illustrative and is not verified against a live client schema.
 
 ---
 
@@ -70,7 +70,7 @@ This file tracks everything that is currently uncertain, missing, or needs confi
 | 19 | Widget profile photo proxy | Direct CDN vs MyVivahAI proxy | Open |
 | 20 | Server-to-server chat actor identity | `X-External-User-Id` (platform-asserted) vs per-user tokens | **Resolved — Phase 3D: `X-External-User-Id` header, platform-scoped** — see `docs/integration-api.md` §Chat API |
 | 21 | Widget browser identity | Raw ID vs signed session token | **Resolved — Phase 4: short-lived widget session token minted by `/api/v1/widget/session`; browser identity always token-bound `aud = widget:{slug}`, spoofed header ignored** — see `docs/integration-api.md` §Widget API |
-| 22 | Widget search source | MyVivahAI-held refs vs client search API | **Phase 4: partial — `integration/users?q=` against MyVivahAI references; full client-API delegation open** |
+| 22 | Widget search source | MyVivahAI-held refs vs client search API | **Resolved — widget uses configured client API; see external-user-search-v1.md** |
 
 ---
 

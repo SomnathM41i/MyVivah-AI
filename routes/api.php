@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ChatConversationController;
+use App\Http\Controllers\Api\V1\ChatHealthController;
 use App\Http\Controllers\Api\V1\ChatMessageController;
 use App\Http\Controllers\Api\V1\IntegrationController;
 use App\Http\Controllers\Api\V1\PlatformController;
@@ -65,6 +66,7 @@ $authentication = str_replace(':', '.', (string) config('paseto.authentication_s
 Route::prefix('v1')
     ->middleware('api')
     ->group(function () use ($scoped, $widgetScoped, $authentication): void {
+        Route::get('health/chat', ChatHealthController::class)->name('api.v1.health.chat');
         // Credential exchange → short-lived PASETO (throttled, phase-3a §14).
         Route::post('auth/token', [AuthController::class, 'issue'])
             ->middleware('throttle:paseto.issue')
@@ -192,6 +194,10 @@ Route::prefix('v1')
         // browser header can never override it. Always registered after
         // `widget/session` so the bootstrap route above wins for that literal path.
         Route::prefix('widget')->group(function () use ($widgetScoped): void {
+            Route::get('users/search', [UserController::class, 'search'])
+                ->middleware($widgetScoped('realtime_chat.read'))
+                ->name('api.v1.widget.users.search');
+
             Route::get('integration/users', [UserController::class, 'index'])
                 ->middleware($widgetScoped('realtime_chat.read'))
                 ->name('api.v1.widget.users.index');

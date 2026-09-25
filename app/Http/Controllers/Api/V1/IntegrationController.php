@@ -13,6 +13,7 @@ use App\Services\ApiKeyService;
 use App\Services\ValidatedPasetoToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 /**
@@ -69,6 +70,16 @@ class IntegrationController extends Controller
             $integration->allowed_origins = is_array($allowedOrigins)
                 ? array_values(array_map('strval', $allowedOrigins))
                 : null;
+        }
+
+        foreach (['user_search_endpoint', 'user_search_auth_type', 'user_search_auth_header'] as $field) {
+            if ($request->exists($field)) {
+                $integration->{$field} = $request->validated($field);
+            }
+        }
+        if ($request->exists('user_search_auth_secret')) {
+            $secret = $request->validated('user_search_auth_secret');
+            $integration->user_search_auth_secret = is_string($secret) && $secret !== '' ? Crypt::encryptString($secret) : null;
         }
 
         $integration->save();

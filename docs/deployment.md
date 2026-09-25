@@ -133,7 +133,7 @@ Optional `--platform=<public_id|slug>` narrows a sweep to one platform.
 ## Deploy checklist
 
 - [ ] `composer install --no-dev --optimize-autoloader` (deploy box)
-- [ ] Migrations applied: `php artisan migrate --force` (19 migrations on MySQL)
+- [ ] Migrations applied: `php artisan migrate --force` (21 migrations in this checkout; the user-search configuration migration is additive)
 - [ ] `php artisan config:cache` + `php artisan route:cache` (env baked at deploy)
 - [ ] Cron: presence sweep every minute
 - [ ] HTTPS enforced by the host/proxy; `APP_URL` correct
@@ -143,3 +143,27 @@ Optional `--platform=<public_id|slug>` narrows a sweep to one platform.
       all independent of realtime.
 - [ ] Widget check: `POST /api/v1/widget/session` (platform token) → embed token in
       `MyVivahAIWidget.init({session:{...}})`; open a thread, send, refresh.
+
+## User-search endpoint and deployment status
+
+Configure an HTTPS client API URL, an exact allowed host, and Bearer or custom-header credential under Dashboard → Integrations. The URL is never browser-supplied, redirects are disabled, and IP-literal/localhost/local-domain destinations are rejected. Production requests require cURL and HTTPS on port 443; MyVivahAI checks every DNS answer and pins the request to a validated public address. Requests use 2-second connect and 5-second total timeouts, request at most 20 results, validate response fields, and do not retry upstream failures. Search is limited to 30 requests per minute per platform/user. Audit logs include only platform reference, request ID, duration, status/outcome and result count.
+
+This checkout was not deployed to or verified against Hostinger. No production backup, isolated restore, production logs, cron schedule, or live socket delivery was inspected. Before release, make a database backup and rehearse restore into an isolated database. Applying the new migration is additive; rollback drops only its five search configuration columns. Keep `CHAT_REALTIME_ENABLED=false` on shared hosting; REST polling is the operational fallback. The presence sweep remains `* * * * * php /path/to/artisan chat:presence-sweep`.
+
+### Health and backup recovery
+
+- `/up` is the Laravel liveness check. `GET /api/v1/health/chat` is an unauthenticated, rate-limited readiness check that returns only whether `SELECT 1` succeeds; it does not test or claim realtime transport availability.
+- Back up MySQL with a transaction-consistent dump and protect the resulting file off-host:
+
+  ```sh
+  mysqldump --single-transaction --routines --triggers --user=DB_USER --password DB_NAME > myvivah-YYYYMMDD.sql
+  ```
+
+  `--password` prompts interactively. Do not put database credentials in command history. Store the backup encrypted with restricted access and verify that the SQL file is non-empty.
+- Rehearse restoration only into a separately provisioned, isolated database, never over production:
+
+  ```sh
+  mysql --user=RESTORE_USER --password ISOLATED_DATABASE < myvivah-YYYYMMDD.sql
+  ```
+
+  Then verify migration state, platform/chat table counts, and a read-only conversation/message query. Record the backup timestamp, checksum, restore duration and result. This procedure has not yet been run against Hostinger.

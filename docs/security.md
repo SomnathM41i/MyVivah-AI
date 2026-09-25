@@ -78,6 +78,8 @@ MyVivahAI stores credentials used to call the client's external APIs:
 | Rotation | Admin/owner-triggered rotation; credential revision tracked |
 | Access scope | Only the owning platform's dashboard can read/write; widget never receives them |
 
+For user search specifically, the endpoint host is separately allowlisted from browser widget origins. MyVivahAI disables redirects, rejects IP literals and local hostnames, requires HTTPS/default port in production, rejects DNS answers in reserved/private IPv4 or IPv6 ranges, and pins cURL to the validated DNS address to prevent rebinding. Requests have bounded timeouts and result counts. Search and selection-time eligibility checks use the same credential, which is never included in audit fields or API resources.
+
 ### Rate Limiting
 
 - Login attempts: e.g., 5/min per IP+email.

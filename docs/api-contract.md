@@ -2,6 +2,8 @@
 
 ## Overview
 
+> **Current chat search contract:** the older generic examples in this document are superseded for widget search by [External User Search API v1](external-user-search-v1.md). That versioned contract uses server-to-server platform authentication and minimal fields; it also defines a selection-time eligibility recheck.
+
 To integrate the Real-Time Chat widget, each client platform must expose a set of HTTP APIs that MyVivahAI can call. These are **the client's own APIs**, exposed on the client's infrastructure, and configured by the client in the API Integration dashboard.
 
 This document defines the **contract** each capability must satisfy. Parameter/field names are recommendations; the field-mapping feature allows clients to comply without exact-name matching.

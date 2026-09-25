@@ -167,6 +167,21 @@ This list is a living document. Update it as work proceeds. Do **not** mark task
 - [x] **Tests** — `tests/Feature/WidgetApiTest.php` + `tests/Feature/WidgetIntegrationTest.php` (18 tests / 199 assertions) + `tests/js/widget-core.test.js` (15 tests) — all green on sqlite AND MySQL
 - [ ] **Not delivered (documented):** `widget_configs` table/UI, embed-script generator UI, test/live toggle, dashboard test checklist — the browser-side `window.MyVivahAIWidget.init({...})` covers embedding today; dashboard/UI tooling remains follow-up (no schema was needed for the API surface shipped)
 
+### Chat integration completion work (2026-09-25)
+
+- [x] Define versioned client user-search API v1 contract (`docs/external-user-search-v1.md`).
+- [x] Configure endpoint, exact host allowlist, and encrypted auth credential on existing `platform_integrations` records.
+- [x] Delegate widget search to the client backend with bounded request, response validation, pagination, rate limit, redacted logs, and unavailable state.
+- [x] Bind selected results to a short-lived encrypted candidate token and create deterministic conversation/mapping for previously unmapped recipients.
+- [x] Add basic dashboard search endpoint/credential configuration and Core PHP/PDO sample.
+- [x] Recheck current client-side eligibility when opening a conversation; blocked/stale results create no mapping or conversation.
+- [x] Add dashboard search connection test using an operator-supplied requester and sample query.
+- [ ] Add embed generator/widget appearance settings and test/live configuration.
+- [ ] Verify on target Hostinger deployment; restore rehearsal, backup verification, and live WebSocket check not performed.
+- [x] Automated SQLite suite: 176 tests / 1351 assertions passed (2026-09-25).
+- [x] Pint `--test`, PHPStan level 5, PHP syntax checks passed.
+- [ ] Node widget tests and frontend build: Node/npm are unavailable in this environment.
+
 ---
 
 ## Phase 5 — Real-Time Chat Module
@@ -176,7 +191,7 @@ This list is a living document. Update it as work proceeds. Do **not** mark task
 - [x] Presence (DB-backed, no Redis) — **delivered in Phase 3E** (heartbeat / read / `chat:presence-sweep`; transitions broadcast when realtime on + polling fallback)
 - [x] WebSocket event broadcasting (Reverb — ADR-010) — **implemented, driver-agnostic, Phase 3E**: events + `RealtimeBroadcaster` + pusher-protocol lanes pre-wired config-only in `config/broadcasting.php`; the actual Reverb server package install (`composer require laravel/reverb pusher/pusher-php-server`) + `reverb:start` remains a runtime deployment step (`docs/deployment.md`) — no long-lived infra assumed
 - [x] Widget identity-token bootstrap endpoint — **delivered in Phase 4** (`POST /api/v1/widget/session`; widget sessions are short-lived browser tokens, distinct from platform tokens)
-- [ ] Implement search (via client's search API) — `integration/users?q=` search over MyVivahAI-held references is DONE (Phase 4); delegating to the client's external search API remains a future integration hook
+- [x] Implement widget search via the configured client API — see the 2026-09-25 chat integration work above; `/integration/users` remains for mapped-identity reconciliation only
 - [ ] Message recall/delete (SoftDeletes already reserved on `messages`; service layer pending)
 
 ---

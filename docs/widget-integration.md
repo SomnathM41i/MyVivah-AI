@@ -271,6 +271,12 @@ The sections above describe the product flow. This section documents the **imple
 | Demo | `GET /demo/chat` (local + APP_DEBUG only) renders two side-by-side users; `DemoPlatformSeeder` seeds the demo integration + 5 demo users |
 | Tests | PHP feature suites `WidgetApiTest`/`WidgetIntegrationTest` (auth, isolation, spoofing, revoke, expiry, E2E, CORS, realtime broadcast) + 15 Node unit tests over the widget `_core` |
 
+### External user search and search-to-chat (2026-09-25)
+
+Search delegates to the configured client API, not the MyVivahAI identity-map list. The short-lived widget session binds platform and requester identity. The backend sends those identities server-to-server and applies timeouts, response validation, rate limits, and endpoint host checks. The widget receives only the fields in [external-user-search-v1.md](external-user-search-v1.md). A five-minute encrypted candidate token binds the selected target to that requester and platform; conversation creation rejects raw target IDs from browsers. MyVivahAI creates the target identity reference and deterministic conversation only after token validation. The client remains responsible for visibility and chat eligibility when producing search results.
+
+Dashboard → Integrations stores the endpoint and encrypted credential and can test it with an operator-supplied requester and sample query. A generated embed snippet/config record, test/live mode, and full checklist are not yet available. The Core PHP sample is a reference, not a verified integration against a live database.
+
 ### Embedding (runtime API initialization — implemented)
 
 ```html

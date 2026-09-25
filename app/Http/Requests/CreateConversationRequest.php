@@ -21,8 +21,11 @@ class CreateConversationRequest extends ApiFormRequest
         $count = (int) config('chat.conversation.participants', 2);
         $maxId = (int) config('chat.conversation.external_user_id_max', 255);
 
+        $widget = $this->attributes->has('widget_session');
+
         return [
-            'participant_external_ids' => ['required', 'array', "size:{$count}", 'distinct'],
+            'candidate_token' => [$widget ? 'required' : 'prohibited', 'string', 'max:4096'],
+            'participant_external_ids' => [$widget ? 'sometimes' : 'required', 'array', "size:{$count}", 'distinct'],
             'participant_external_ids.*' => [
                 'required',
                 'string',

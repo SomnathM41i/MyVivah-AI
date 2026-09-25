@@ -40,6 +40,11 @@ class PlatformIntegration extends Model
         'rate_limit_per_minute',
         'base_domain',
         'allowed_origins',
+        'user_search_endpoint',
+        'user_search_auth_type',
+        'user_search_auth_header',
+        'user_search_auth_secret',
+        'user_search_allowed_hosts',
         'last_active_at',
         'revoked_at',
     ];
@@ -53,6 +58,7 @@ class PlatformIntegration extends Model
     {
         return [
             'allowed_origins' => 'array',
+            'user_search_allowed_hosts' => 'array',
             'last_active_at' => 'datetime',
             'revoked_at' => 'datetime',
         ];

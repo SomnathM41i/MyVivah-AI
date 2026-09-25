@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserVerifyRequest;
+use App\Http\Requests\WidgetUserSearchRequest;
 use App\Http\Resources\ExternalUserReferenceResource;
+use App\Services\ExternalPlatformUserSearch;
 use App\Services\ExternalUserService;
 use App\Services\ValidatedPasetoToken;
+use App\Services\ValidatedWidgetSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -24,6 +27,7 @@ class UserController extends Controller
 {
     public function __construct(
         private readonly ExternalUserService $users,
+        private readonly ExternalPlatformUserSearch $search,
     ) {}
 
     /**
@@ -147,5 +151,23 @@ class UserController extends Controller
                 ],
             ],
         ], 200);
+    }
+
+    /** GET /api/v1/widget/users/search — delegates to the client's user directory. */
+    public function search(WidgetUserSearchRequest $request): JsonResponse
+    {
+        $widget = $request->attributes->get('widget_session');
+        if (! $widget instanceof ValidatedWidgetSession) {
+            throw new ApiException('INVALID_TOKEN', 'Missing widget session.', 401);
+        }
+        $result = $this->search->search(
+            $widget->platform,
+            $widget->externalUserId,
+            trim((string) $request->validated('q')),
+            (int) $request->validated('limit', 20),
+            $request->validated('cursor'),
+        );
+
+        return response()->json(['success' => true, 'data' => ['results' => $result['results'], 'pagination' => ['next_cursor' => $result['next_cursor'], 'has_more' => $result['has_more']]], 'meta' => ['request_id' => (string) Str::uuid()]]);
     }
 }

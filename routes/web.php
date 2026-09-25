@@ -87,6 +87,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/services', [DashboardController::class, 'services'])->name('dashboard.services');
     Route::get('/dashboard/integrations', [DashboardController::class, 'integrations'])->name('dashboard.integrations');
+    Route::put('/dashboard/integrations/user-search', [DashboardController::class, 'updateSearchIntegration'])->middleware('throttle:6,1')->name('dashboard.integrations.user-search.update');
+    Route::post('/dashboard/integrations/user-search/test', [DashboardController::class, 'testSearchIntegration'])->middleware('throttle:6,1')->name('dashboard.integrations.user-search.test');
     Route::get('/dashboard/subscription', [DashboardController::class, 'subscription'])->name('dashboard.subscription');
     Route::get('/dashboard/payments', [DashboardController::class, 'payments'])->name('dashboard.payments');
     Route::get('/dashboard/settings', [DashboardController::class, 'settings'])->name('dashboard.settings');

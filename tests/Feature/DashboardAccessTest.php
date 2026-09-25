@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Platform;
+use App\Models\PlatformIntegration;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -70,5 +73,44 @@ class DashboardAccessTest extends TestCase
             ->get('/dashboard')
             ->assertOk()
             ->assertSee('Logout');
+    }
+
+    public function test_platform_owner_can_save_search_configuration_without_revealing_secret(): void
+    {
+        $user = User::factory()->create();
+        $platform = Platform::factory()->createdBy($user)->active()->create();
+        $integration = PlatformIntegration::factory()->forPlatform($platform)->active()->create();
+
+        $this->actingAs($user)->put(route('dashboard.integrations.user-search.update'), [
+            'user_search_endpoint' => 'https://matrimony.example.test/api/search',
+            'user_search_auth_type' => 'bearer',
+            'user_search_auth_secret' => 'never-display-this',
+            'allowed_search_origin' => 'https://matrimony.example.test',
+        ])->assertRedirect()->assertSessionHas('status');
+
+        $saved = $integration->fresh();
+        $this->assertSame('https://matrimony.example.test/api/search', $saved->user_search_endpoint);
+        $this->assertSame('matrimony.example.test', $saved->user_search_allowed_hosts[0]);
+        $this->assertNotSame('never-display-this', $saved->user_search_auth_secret);
+        $this->assertSame('never-display-this', Crypt::decryptString($saved->user_search_auth_secret));
+        $this->actingAs($user)->get('/dashboard/integrations')->assertOk()->assertDontSee('never-display-this');
+    }
+
+    public function test_dashboard_search_connection_test_reports_only_safe_status(): void
+    {
+        $user = User::factory()->create();
+        $platform = Platform::factory()->createdBy($user)->active()->create();
+        PlatformIntegration::factory()->forPlatform($platform)->active()->create([
+            'user_search_endpoint' => 'https://matrimony.example.test/api/search',
+            'user_search_allowed_hosts' => ['matrimony.example.test'],
+            'user_search_auth_type' => 'bearer',
+            'user_search_auth_secret' => Crypt::encryptString('search-secret'),
+        ]);
+        Http::fake(['https://matrimony.example.test/api/search*' => Http::response(['success' => true, 'data' => [], 'pagination' => ['next_cursor' => null, 'has_more' => false]])]);
+
+        $this->actingAs($user)->post(route('dashboard.integrations.user-search.test'), [
+            'requester_external_user_id' => 'member-1',
+            'query' => 'sample',
+        ])->assertRedirect()->assertSessionHas('search_test_status', 'Connection succeeded; no eligible users for this sample query.');
     }
 }

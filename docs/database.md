@@ -185,19 +185,27 @@ This may be maintained by an event listener on subscription status changes rathe
 
 ### `platform_integrations`
 
-Grouping of one platform's integration config for one service.
+One row per external platform (the current migration has no `service_id`). This row currently owns API lifecycle, widget-origin, and external user-search configuration. General endpoint capability, credential, and test-log tables described below are conceptual and are not present in the current schema.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | BIGINT UNSIGNED PK | |
 | platform_id | FK → platforms.id | |
-| service_id | FK → services.id | |
-| status | ENUM(not_configured, configured, testing, test_failed, test_passed, active, suspended) | |
-| activated_at | TIMESTAMP NULL | |
+| public_id | CHAR(26) UNIQUE | ULID |
+| status | ENUM(pending, active, suspended, deactivated) | |
+| paseto_version, token_ttl_seconds, rate_limit_per_minute | config | Platform API authentication |
+| base_domain, allowed_origins | VARCHAR / JSON | Browser widget origin policy |
+| user_search_endpoint | VARCHAR(2048) NULL | Configured client API URL |
+| user_search_auth_type, user_search_auth_header | VARCHAR NULL | Bearer or custom-header mode |
+| user_search_auth_secret | TEXT NULL | Laravel-encrypted client API credential |
+| user_search_allowed_hosts | JSON NULL | Exact endpoint host allowlist; separate from widget origins |
+| last_active_at, revoked_at | TIMESTAMP NULL | Lifecycle metadata |
 
-Unique: (platform_id, service_id).
+Unique: (platform_id).
 
-### `api_endpoint_configs`
+Migration `2026_09_25_000001` adds the search API fields to the existing row; no duplicate integration or credential table was introduced.
+
+### `api_endpoint_configs` (planned; not migrated)
 
 Per-capability endpoint configuration.
 
@@ -219,7 +227,7 @@ Per-capability endpoint configuration.
 Unique: (integration_id, capability).
 Indices: `integration_id`.
 
-### `api_credentials`
+### `api_credentials` (planned; not migrated)
 
 | Column | Type | Notes |
 |---|---|---|
@@ -234,7 +242,7 @@ Indices: `integration_id`.
 
 Indices: `integration_id`.
 
-### `api_test_logs`
+### `api_test_logs` (planned; not migrated)
 
 | Column | Type | Notes |
 |---|---|---|
