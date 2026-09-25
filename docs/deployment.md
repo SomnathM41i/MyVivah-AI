@@ -133,9 +133,9 @@ Optional `--platform=<public_id|slug>` narrows a sweep to one platform.
 ## Deploy checklist
 
 - [ ] `composer install --no-dev --optimize-autoloader` (deploy box)
-- [ ] Migrations applied: `php artisan migrate --force` (21 migrations in this checkout; the user-search configuration migration is additive)
+- [ ] Migrations applied: `php artisan migrate --force` (the user-search configuration migration is additive)
 - [ ] `php artisan config:cache` + `php artisan route:cache` (env baked at deploy)
-- [ ] Cron: presence sweep every minute
+- [ ] Cron: presence sweep every minute, using the same PHP binary and app path as the website
 - [ ] HTTPS enforced by the host/proxy; `APP_URL` correct
 - [ ] Optionally enable realtime (steps above) when the tier supports it
 - [ ] Serve `public/js/myvivah-widget.js` at the widget URL clients embed
@@ -148,7 +148,11 @@ Optional `--platform=<public_id|slug>` narrows a sweep to one platform.
 
 Configure an HTTPS client API URL, an exact allowed host, and Bearer or custom-header credential under Dashboard → Integrations. The URL is never browser-supplied, redirects are disabled, and IP-literal/localhost/local-domain destinations are rejected. Production requests require cURL and HTTPS on port 443; MyVivahAI checks every DNS answer and pins the request to a validated public address. Requests use 2-second connect and 5-second total timeouts, request at most 20 results, validate response fields, and do not retry upstream failures. Search is limited to 30 requests per minute per platform/user. Audit logs include only platform reference, request ID, duration, status/outcome and result count.
 
-This checkout was not deployed to or verified against Hostinger. No production backup, isolated restore, production logs, cron schedule, or live socket delivery was inspected. Before release, make a database backup and rehearse restore into an isolated database. Applying the new migration is additive; rollback drops only its five search configuration columns. Keep `CHAT_REALTIME_ENABLED=false` on shared hosting; REST polling is the operational fallback. The presence sweep remains `* * * * * php /path/to/artisan chat:presence-sweep`.
+### Hostinger deployment helper
+
+`scripts/deploy-hostinger.sh` is the account-specific in-place deploy helper. It requires a clean `main` checkout, only fast-forwards from `origin/main`, validates production settings without printing secrets, creates a compressed MySQL backup outside the web root, applies migrations in Laravel maintenance mode, installs production Composer dependencies, rebuilds Laravel caches, and retries the database readiness check. It never copies a local `.env` to the server. Install it in the account home directory and invoke it over SSH; the current Hostinger copy is `/home/u320743426/deploy-myvivahai.sh`.
+
+Hostinger deployment on 2026-09-25 used commit `2f17fa5e38cd2cd2eb37c7458cb898dabbc5839b`. The external-user-search migration was applied, Laravel production dependencies and caches were refreshed, and `GET /api/v1/health/chat` returned database ready. A compressed database backup was saved before the migration under `/home/u320743426/.local/share/myvivahai/backups/`. A second backup was created during final deployment verification. Restore has not been rehearsed. The Disha search endpoint and Dashboard integration settings are still required before external user search can return Disha members. Live Reverb delivery has not been verified; keep `CHAT_REALTIME_ENABLED=false` on shared hosting until tested. The configured presence sweep is `* * * * * cd /home/u320743426/domains/digitalji.in/public_html/myvivahai && /usr/bin/php artisan chat:presence-sweep`.
 
 ### Health and backup recovery
 
