@@ -49,6 +49,8 @@ Immediately before creating a conversation, MyVivahAI rechecks current eligibili
 
 The widget displays normalized results and submits only a server-issued short-lived candidate token to conversation creation. The token binds platform, requester, target ID, and expiry. MyVivahAI creates the target's minimal identity mapping only after it verifies this token, then uses the existing deterministic conversation key. The recipient can later authenticate with their own widget session and discover the conversation. Profile display fields are transient and are not persisted.
 
+MyVivahAI adds `presence_status` (`online` or `offline`) to widget search results. It is derived from the target's MyVivahAI widget heartbeat, not from the client's website login. A user is online while their widget sends recent heartbeats; a user who has not opened the widget is reported offline until a widget session establishes presence.
+
 Client API credentials are stored encrypted at rest. Audit logs record outcome, duration, result count, platform reference, and request ID only; never credentials, query text, result profile data, or authentication headers.
 
 ## Core PHP sample

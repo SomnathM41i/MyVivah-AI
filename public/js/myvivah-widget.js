@@ -726,6 +726,7 @@
       '.mwv-row-main{flex:1;min-width:0}',
       '.mwv-row-top{display:flex;justify-content:space-between;gap:8px}',
       '.mwv-row-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.mwv-row-presence{margin-top:2px;font-size:11px;color:#64748b}',
       '.mwv-row-time{font-size:11px;color:#9aa1b0;flex:none}',
       '.mwv-row-excerpt{font-size:12px;color:#69707e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
       '.mwv-badge{min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px;flex:none}',
@@ -1376,9 +1377,14 @@
         photo.onerror = function () { photo.remove(); };
         avatar.textContent = ''; avatar.appendChild(photo);
       }
+      var presence = map.presence_status === 'online' ? 'online' : 'offline';
+      var dot = el('span');
+      dot.className = 'mwv-dot' + (presence === 'online' ? ' online' : '');
+      avatar.appendChild(dot);
       row.appendChild(avatar);
       var main = el('div', 'mwv-row-main');
       main.appendChild(el('div', 'mwv-row-name', core.displayName(map)));
+      main.appendChild(el('div', 'mwv-row-presence', self._t(presence === 'online' ? 'presenceOnline' : 'presenceOffline')));
       row.appendChild(main);
       var start = el('button', 'mwv-icon-btn', 'Start chat');
       start.type = 'button'; start.addEventListener('click', function (event) { event.stopPropagation(); self._openUser(map); });

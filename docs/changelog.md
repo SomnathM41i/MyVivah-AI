@@ -2,6 +2,11 @@
 
 > Format: Keep a Changelog style (https://keepachangelog.com/en/1.1.0/).
 
+### Changed — 2026-09-26 (Widget search presence)
+
+- Search result cards now show online/offline presence from the platform user's MyVivahAI widget heartbeat. Disha search matching is case-insensitive for names and member IDs.
+- Disha search remains limited to active, visible, admin-approved members. The supplied Disha registration flow sets `profile_approve` to `No` for new registrations, so those profiles remain hidden from chat search until Disha approves them.
+
 ### Added — 2026-09-25 (Self-service service onboarding)
 
 - Connected the dashboard service catalog to active plans. Free plans activate immediately and provision the service entitlement, API integration, and a one-time API secret; paid plan selections create pending requests for manual review without granting access or charging the platform.

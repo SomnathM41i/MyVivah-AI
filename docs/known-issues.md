@@ -22,7 +22,7 @@ This file tracks everything that is currently uncertain, missing, or needs confi
 
 - Widget identity-token bootstrap resolved + implemented (`/api/v1/widget/session` → short-lived PASETO v4.local widget session; token-bound identity, audience isolation, jti revocation, expiry). See `docs/widget-integration.md` §Phase 4.
 - Widget search delegates to the configured client search API through `GET /api/v1/widget/users/search`; signed candidate tokens protect the result-to-conversation handoff. The old identity-map search remains as a reconciliation endpoint.
-- Dashboard saves the platform search endpoint and encrypted credential and can test search using an operator-supplied requester/query. A widget config record, embed-code generator, test/live mode, and complete integration checklist remain outstanding. The Core PHP sample is illustrative and is not verified against a live client schema.
+- Dashboard saves the platform search endpoint and encrypted credential and can test search using an operator-supplied requester/query. Disha's endpoint currently responds successfully but returns zero eligible results for the sample queries checked. The supplied registration code initializes `profile_approve` as `No`; the search predicate correctly requires active, visible, approved profiles. Confirm Disha has approved profiles matching the query before changing that predicate. Presence shown on search results is derived from the recipient's MyVivahAI widget heartbeat, not their Disha login state.
 
 ---
 

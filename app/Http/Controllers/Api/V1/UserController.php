@@ -7,8 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UserVerifyRequest;
 use App\Http\Requests\WidgetUserSearchRequest;
 use App\Http\Resources\ExternalUserReferenceResource;
+use App\Models\ExternalUserMap;
 use App\Services\ExternalPlatformUserSearch;
 use App\Services\ExternalUserService;
+use App\Services\PresenceService;
 use App\Services\ValidatedPasetoToken;
 use App\Services\ValidatedWidgetSession;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +30,7 @@ class UserController extends Controller
     public function __construct(
         private readonly ExternalUserService $users,
         private readonly ExternalPlatformUserSearch $search,
+        private readonly PresenceService $presence,
     ) {}
 
     /**
@@ -168,6 +171,33 @@ class UserController extends Controller
             $request->validated('cursor'),
         );
 
-        return response()->json(['success' => true, 'data' => ['results' => $result['results'], 'pagination' => ['next_cursor' => $result['next_cursor'], 'has_more' => $result['has_more']]], 'meta' => ['request_id' => (string) Str::uuid()]]);
+        $results = $result['results'];
+        if ($results !== []) {
+            $maps = ExternalUserMap::query()
+                ->where('platform_id', $widget->platform->id)
+                ->whereIn('external_user_id', array_column($results, 'external_user_id'))
+                ->get()
+                ->keyBy('external_user_id');
+
+            foreach ($results as &$match) {
+                $map = $maps->get($match['external_user_id']);
+                $match['presence_status'] = $map === null
+                    ? ExternalUserMap::PRESENCE_OFFLINE
+                    : $this->presence->state($widget->platform, $map)['presence_status'];
+            }
+            unset($match);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'results' => $results,
+                'pagination' => [
+                    'next_cursor' => $result['next_cursor'],
+                    'has_more' => $result['has_more'],
+                ],
+            ],
+            'meta' => ['request_id' => (string) Str::uuid()],
+        ]);
     }
 }
